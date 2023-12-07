@@ -67,7 +67,8 @@ contract Strategy is BaseStrategy, UniswapV2Swapper {
                 "cant pay bridge"
             );
 
-            uint toBeBridged = _amount - feeAmount;
+            //We want to keep 20 idle
+            uint toBeBridged = (_amount * 800) / 1000;
 
             weth.withdraw(feeAmount);
             asset.increaseAllowance(address(bridge), _amount);
@@ -81,6 +82,8 @@ contract Strategy is BaseStrategy, UniswapV2Swapper {
             //TODO add ERC20 fee token
         }
     }
+
+    function preHarvest() external onlyKeepers {}
 
     receive() external payable {
         // send / transfer (forwards 2300 gas to this fallback function)
@@ -108,10 +111,8 @@ contract Strategy is BaseStrategy, UniswapV2Swapper {
      *
      * @param _amount, The amount of 'asset' to be freed.
      */
-    function _freeFunds(uint256 _amount) internal override {
-        // TODO: implement withdraw logic EX:
-        //
-        //      lendingPool.withdraw(address(asset), _amount);
+    function _freeFunds(uint256 _amount) internal override onlyKeepers {
+        bridge.withdraw(address(this), _amount);
     }
 
     /**
