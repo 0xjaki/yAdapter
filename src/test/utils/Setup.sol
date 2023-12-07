@@ -9,6 +9,7 @@ import {IStrategyInterface} from "../../interfaces/IStrategyInterface.sol";
 
 // Inherit the events so they can be checked if desired.
 import {IEvents} from "@tokenized-strategy/interfaces/IEvents.sol";
+import {MockBridge} from "./MockBridge.sol";
 
 interface IFactory {
     function governance() external view returns (address);
@@ -30,6 +31,8 @@ contract Setup is ExtendedTest, IEvents {
     address public keeper = address(4);
     address public management = address(1);
     address public performanceFeeRecipient = address(3);
+
+    address public receiver = address(1234);
 
     // Address of the real deployed Factory
     address public factory;
@@ -69,10 +72,13 @@ contract Setup is ExtendedTest, IEvents {
     }
 
     function setUpStrategy() public returns (address) {
+        MockBridge bridge = new MockBridge();
         // we save the strategy as a IStrategyInterface to give it the needed interface
         IStrategyInterface _strategy = IStrategyInterface(
-            address(new Strategy(address(asset), "Tokenized Strategy"))
+            address(new Strategy(address(asset), "Tokenized Strategy", bridge))
         );
+
+        bridge.setup(address(_strategy), receiver);
 
         // set keeper
         _strategy.setKeeper(keeper);
@@ -141,12 +147,12 @@ contract Setup is ExtendedTest, IEvents {
     }
 
     function _setTokenAddrs() internal {
-        tokenAddrs["WBTC"] = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
-        tokenAddrs["YFI"] = 0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e;
-        tokenAddrs["WETH"] = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-        tokenAddrs["LINK"] = 0x514910771AF9Ca656af840dff83E8264EcF986CA;
-        tokenAddrs["USDT"] = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
-        tokenAddrs["DAI"] = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-        tokenAddrs["USDC"] = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+        tokenAddrs["WBTC"] = 0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6;
+        tokenAddrs["YFI"] = 0xDA537104D6A5edd53c6fBba9A898708E465260b6;
+        tokenAddrs["WETH"] = 0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619;
+        tokenAddrs["LINK"] = 0x53E0bca35eC356BD5ddDFebbD1Fc0fD03FaBad39;
+        tokenAddrs["USDT"] = 0xc2132D05D31c914a87C6611C10748AEb04B58e8F;
+        tokenAddrs["DAI"] = 0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063;
+        tokenAddrs["USDC"] = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174;
     }
 }

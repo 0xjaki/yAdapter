@@ -2,3 +2,4 @@
 forge-std/=lib/forge-std/src/
 @tokenized-strategy/=lib/tokenized-strategy/src/
 @periphery/=lib/tokenized-strategy-periphery/src/
+@chainlink/=ccip/contracts/src/v0.8/ccip

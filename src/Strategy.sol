@@ -2,31 +2,35 @@
 pragma solidity 0.8.18;
 
 import {BaseStrategy, ERC20} from "@tokenized-strategy/BaseStrategy.sol";
+
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "forge-std/console.sol";
 
-// Import interfaces for many popular DeFi projects, or add your own!
-//import "../interfaces/<protocol>/<Interface>.sol";
+import {Client} from "ccip/contracts/src/v0.8/ccip/libraries/Client.sol";
+import {IRouterClient} from "ccip/contracts/src/v0.8/ccip/interfaces/IRouterClient.sol";
 
-/**
- * The `TokenizedStrategy` variable can be used to retrieve the strategies
- * specific storage data your contract.
- *
- *       i.e. uint256 totalAssets = TokenizedStrategy.totalAssets()
- *
- * This can not be used for write functions. Any TokenizedStrategy
- * variables that need to be updated post deployment will need to
- * come from an external call from the strategies specific `management`.
- */
+import {IBridge} from "./interfaces/IBridge.sol";
+import {IWETH9} from "./interfaces/IWETH9.sol";
 
-// NOTE: To implement permissioned functions you can use the onlyManagement, onlyEmergencyAuthorized and onlyKeepers modifiers
+import {UniswapV2Swapper} from "lib/tokenized-strategy-periphery/src/swappers/UniswapV2Swapper.sol";
 
-contract Strategy is BaseStrategy {
+contract Strategy is BaseStrategy, UniswapV2Swapper {
     using SafeERC20 for ERC20;
 
     constructor(
         address _asset,
-        string memory _name
-    ) BaseStrategy(_asset, _name) {}
+        string memory _name,
+        IBridge _iBridge
+    ) BaseStrategy(_asset, _name) {
+        bridge = _iBridge;
+        router = 0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff;
+        base = 0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270;
+    }
+
+    address l2Contract;
+    IBridge bridge;
+
+    uint public bridgedAssets;
 
     /*//////////////////////////////////////////////////////////////
                 NEEDED TO BE OVERRIDDEN BY STRATEGIST
@@ -44,9 +48,43 @@ contract Strategy is BaseStrategy {
      * to deposit in the yield source.
      */
     function _deployFunds(uint256 _amount) internal override {
-        // TODO: implement deposit logic EX:
-        //
-        //      lendingPool.deposit(address(asset), _amount ,0);
+        _bridgeFunds(_amount);
+    }
+
+    function _bridgeFunds(uint256 _amount) internal {
+        IWETH9 weth = IWETH9(base);
+
+        (address feeToken, uint256 feeAmount) = bridge.getFee(
+            address(asset),
+            _amount
+        );
+
+        if (feeToken == address(0)) {
+            //Swap assets to WETH
+            _swapFrom(address(asset), address(weth), feeAmount, feeAmount);
+            require(
+                weth.balanceOf(address(this)) >= feeAmount,
+                "cant pay bridge"
+            );
+
+            uint toBeBridged = _amount - feeAmount;
+
+            weth.withdraw(feeAmount);
+            asset.increaseAllowance(address(bridge), _amount);
+            bridge.deposit{value: feeAmount}(
+                l2Contract,
+                address(asset),
+                toBeBridged
+            );
+            bridgedAssets += toBeBridged;
+        } else {
+            //TODO add ERC20 fee token
+        }
+    }
+
+    receive() external payable {
+        // send / transfer (forwards 2300 gas to this fallback function)
+        // call (forwards all of the gas)
     }
 
     /**

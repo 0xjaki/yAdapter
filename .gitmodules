@@ -14,3 +14,6 @@
 	path = lib/tokenized-strategy-periphery
 	url = https://github.com/yearn/tokenized-strategy-periphery
 	branch = master
+[submodule "ccip"]
+	path = ccip
+	url = https://github.com/smartcontractkit/ccip
