@@ -25,11 +25,11 @@ contract MockBridge is IBridge {
         );
     }
 
-    function withdraw(address token, uint256 _amount) external {
+    function withdraw(address token, uint256 _amount) external payable {
         //Trigger Bridge
     }
 
-    function getFee(
+    function getDepositFee(
         address token,
         uint256 _amount
     ) external override returns (address, uint256) {
@@ -37,16 +37,25 @@ contract MockBridge is IBridge {
         return (address(0), 123);
     }
 
+    function getWithdrawlFee(
+        address token,
+        uint256 _amount
+    ) external override returns (address, uint256) {
+        // Mock implementation
+        return (address(0), 456);
+    }
+
     //Connext xreceive
     function triggerFundsReceivedCallback(
         address token,
-        uint256 _amount
+        uint256 _amount,
+        uint256 _left
     ) external {
         require(
             ERC20(token).transferFrom(receiver, address(sender), _amount),
             "Transfeor failed"
         );
-        sender.onFundsReceivedCallback(token, _amount);
+        sender.onFundsReceivedCallback(token, _amount, _left);
     }
 
     // Fallback function must be declared as external.

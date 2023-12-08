@@ -26,10 +26,11 @@ contract Adapter is Setup {
         );
     }
 
-    function test_harvest() public {
+    function test_ape() public {
         require(strategy.bridgedAssets() == 0, "initial bridged assets are 0");
         uint256 _amount = 1000000;
-        uint256 bridgeFees = 123;
+        uint256 depositFees = 123;
+        uint256 withdrawlFees = 456;
 
         uint balanceDestiny = 800000;
         uint balanceSource = 200000;
@@ -39,8 +40,8 @@ contract Adapter is Setup {
         checkStrategyTotals(
             strategy,
             _amount,
-            balanceDestiny + bridgeFees,
-            balanceSource - bridgeFees
+            balanceDestiny + depositFees,
+            balanceSource - depositFees
         );
 
         require(strategy.staging() == 0, "staging is empty");
@@ -53,6 +54,7 @@ contract Adapter is Setup {
         //Grant bridge allowance
         vm.prank(receiver);
         asset.increaseAllowance(address(mockBridge), withdrawAmount);
+        console.log(strategy.pricePerShare());
 
         uint beforeHarvest = asset.balanceOf(address(strategy));
         vm.prank(keeper);
@@ -63,16 +65,44 @@ contract Adapter is Setup {
             "withdraw amount is staged"
         );
 
-        mockBridge.triggerFundsReceivedCallback(address(asset), withdrawAmount);
+        uint leftInDestiny = balanceDestiny + expectedProfit - withdrawAmount;
+
+        mockBridge.triggerFundsReceivedCallback(
+            address(asset),
+            withdrawAmount,
+            leftInDestiny
+        );
 
         require(strategy.staging() == 0, "staking should be 0");
         uint afterHarvest = asset.balanceOf(address(strategy));
 
-        assertEq(beforeHarvest + withdrawAmount, afterHarvest);
+        //Dai that has been withdrawn has reached the strat
+        assertEq(
+            beforeHarvest + withdrawAmount - withdrawlFees,
+            afterHarvest,
+            "Dai has not been withdrawn"
+        );
 
         vm.prank(keeper);
         (uint256 profit, uint256 loss) = strategy.report();
 
-        assertEq(withdrawAmount - bridgeFees, profit);
+        uint totalAssetsExpected = leftInDestiny +
+            balanceSource +
+            withdrawAmount -
+            depositFees -
+            withdrawlFees;
+
+        //Profit has been reported
+        assertEq(
+            expectedProfit - depositFees - withdrawlFees,
+            profit,
+            "false profit"
+        );
+        assertEq(
+            strategy.totalAssets(),
+            totalAssetsExpected,
+            "false totalAsset"
+        );
+        assertEq(loss, 0, "loss");
     }
 }

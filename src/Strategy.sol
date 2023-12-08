@@ -54,49 +54,64 @@ contract Strategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
     }
 
     function _bridgeFunds(uint256 _amount) internal {
-        IWETH9 weth = IWETH9(base);
-
-        (address feeToken, uint256 feeAmount) = bridge.getFee(
+        (address feeToken, uint256 feeAmount) = bridge.getDepositFee(
             address(asset),
             _amount
         );
 
+        //We want to keep 20 idle
+        uint toBeBridged = (_amount * 800) / 1000;
+
+        //Fee token is native ETH
         if (feeToken == address(0)) {
-            //Swap assets to WETH
-            _swapFrom(address(asset), address(weth), feeAmount, feeAmount);
-            require(
-                weth.balanceOf(address(this)) >= feeAmount,
-                "cant pay bridge"
-            );
-
-            //We want to keep 20 idle
-            uint toBeBridged = (_amount * 800) / 1000;
-
-            weth.withdraw(feeAmount);
+            swapForEthBridgeFee(feeAmount);
             asset.increaseAllowance(address(bridge), _amount);
             bridge.deposit{value: feeAmount}(
                 l2Contract,
                 address(asset),
                 toBeBridged
             );
-            bridgedAssets += toBeBridged;
         } else {
             //TODO add ERC20 fee token
         }
+        bridgedAssets += toBeBridged;
     }
 
-    //Request funds from the bridge. The keeper know how much to request to maintain 80/20 balance
+    //Request funds from the bridge. The keeper knows how much to request to maintain 80/20 balance
     function preHarvest(uint _amount) external onlyKeepers {
+        (address feeToken, uint256 feeAmount) = bridge.getWithdrawlFee(
+            address(asset),
+            _amount
+        );
+
+        if (feeToken == address(0)) {
+            swapForEthBridgeFee(feeAmount);
+            bridge.withdraw{value: feeAmount}(address(asset), _amount);
+        } else {
+            //TODO add ERC20 fee token
+        }
         //Todo has to swap for fees
-        bridge.withdraw(address(asset), _amount);
         staging += _amount;
     }
 
-    function onFundsReceivedCallback(address token, uint amount) external {
+    function onFundsReceivedCallback(
+        address token,
+        uint amount,
+        uint left
+    ) external {
         staging -= amount;
+        bridgedAssets = left;
         if (staging > 0) {
             //we're taking a loss
         }
+    }
+
+    function swapForEthBridgeFee(uint feeAmount) internal {
+        IWETH9 weth = IWETH9(base);
+        //Swap assets to WETH
+        _swapFrom(address(asset), address(weth), feeAmount, feeAmount);
+        require(weth.balanceOf(address(this)) >= feeAmount, "cant pay bridge");
+        weth.withdraw(feeAmount);
     }
 
     //TODO should revert if its not WETH

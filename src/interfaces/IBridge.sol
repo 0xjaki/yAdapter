@@ -5,9 +5,14 @@ interface IBridge {
         uint256 _amount
     ) external payable;
 
-    function withdraw(address token, uint256 _amount) external;
+    function withdraw(address token, uint256 _amount) external payable;
 
-    function getFee(
+    function getDepositFee(
+        address token,
+        uint256 _amount
+    ) external returns (address, uint256);
+
+    function getWithdrawlFee(
         address token,
         uint256 _amount
     ) external returns (address, uint256);
