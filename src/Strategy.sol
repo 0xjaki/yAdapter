@@ -11,10 +11,11 @@ import {IRouterClient} from "ccip/contracts/src/v0.8/ccip/interfaces/IRouterClie
 
 import {IBridge} from "./interfaces/IBridge.sol";
 import {IWETH9} from "./interfaces/IWETH9.sol";
+import {IBridgeReceiver} from "./interfaces/IBridgeReceiver.sol";
 
 import {UniswapV2Swapper} from "lib/tokenized-strategy-periphery/src/swappers/UniswapV2Swapper.sol";
 
-contract Strategy is BaseStrategy, UniswapV2Swapper {
+contract Strategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
     using SafeERC20 for ERC20;
 
     constructor(
@@ -31,6 +32,7 @@ contract Strategy is BaseStrategy, UniswapV2Swapper {
     IBridge bridge;
 
     uint public bridgedAssets;
+    uint public staging;
 
     /*//////////////////////////////////////////////////////////////
                 NEEDED TO BE OVERRIDDEN BY STRATEGIST
@@ -83,12 +85,22 @@ contract Strategy is BaseStrategy, UniswapV2Swapper {
         }
     }
 
-    function preHarvest() external onlyKeepers {}
-
-    receive() external payable {
-        // send / transfer (forwards 2300 gas to this fallback function)
-        // call (forwards all of the gas)
+    //Request funds from the bridge. The keeper know how much to request to maintain 80/20 balance
+    function preHarvest(uint _amount) external onlyKeepers {
+        //Todo has to swap for fees
+        bridge.withdraw(address(asset), _amount);
+        staging += _amount;
     }
+
+    function onFundsReceivedCallback(address token, uint amount) external {
+        staging -= amount;
+        if (staging > 0) {
+            //we're taking a loss
+        }
+    }
+
+    //TODO should revert if its not WETH
+    receive() external payable {}
 
     /**
      * @dev Will attempt to free the '_amount' of 'asset'.
@@ -142,14 +154,8 @@ contract Strategy is BaseStrategy, UniswapV2Swapper {
         override
         returns (uint256 _totalAssets)
     {
-        // TODO: Implement harvesting logic and accurate accounting EX:
-        //
-        //      if(!TokenizedStrategy.isShutdown()) {
-        //          _claimAndSellRewards();
-        //      }
-        //      _totalAssets = aToken.balanceOf(address(this)) + asset.balanceOf(address(this));
-        //
-        _totalAssets = asset.balanceOf(address(this));
+        //Todo maybe bridge has to do report for bridge asssets too
+        _totalAssets = asset.balanceOf(address(this)) + bridgedAssets - staging;
     }
 
     /*//////////////////////////////////////////////////////////////

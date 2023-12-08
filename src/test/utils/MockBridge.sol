@@ -1,14 +1,16 @@
 pragma solidity ^0.8.0;
 
 import "../../interfaces/IBridge.sol";
+import "../../interfaces/IBridgeReceiver.sol";
+
 import {BaseStrategy, ERC20} from "@tokenized-strategy/BaseStrategy.sol";
 
 contract MockBridge is IBridge {
-    address sender;
+    IBridgeReceiver sender;
     address receiver;
 
     function setup(address _sender, address _receiver) public {
-        sender = _sender;
+        sender = IBridgeReceiver(_sender);
         receiver = _receiver;
     }
 
@@ -24,10 +26,7 @@ contract MockBridge is IBridge {
     }
 
     function withdraw(address token, uint256 _amount) external {
-        require(
-            ERC20(token).transferFrom(receiver, sender, _amount),
-            "Transfer failed"
-        );
+        //Trigger Bridge
     }
 
     function getFee(
@@ -36,6 +35,18 @@ contract MockBridge is IBridge {
     ) external override returns (address, uint256) {
         // Mock implementation
         return (address(0), 123);
+    }
+
+    //Connext xreceive
+    function triggerFundsReceivedCallback(
+        address token,
+        uint256 _amount
+    ) external {
+        require(
+            ERC20(token).transferFrom(receiver, address(sender), _amount),
+            "Transfeor failed"
+        );
+        sender.onFundsReceivedCallback(token, _amount);
     }
 
     // Fallback function must be declared as external.

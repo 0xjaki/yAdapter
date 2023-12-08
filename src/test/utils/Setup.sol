@@ -48,6 +48,8 @@ contract Setup is ExtendedTest, IEvents {
     // Default profit max unlock time is set for 10 days
     uint256 public profitMaxUnlockTime = 10 days;
 
+    MockBridge mockBridge;
+
     function setUp() public virtual {
         _setTokenAddrs();
 
@@ -72,13 +74,15 @@ contract Setup is ExtendedTest, IEvents {
     }
 
     function setUpStrategy() public returns (address) {
-        MockBridge bridge = new MockBridge();
+        mockBridge = new MockBridge();
         // we save the strategy as a IStrategyInterface to give it the needed interface
         IStrategyInterface _strategy = IStrategyInterface(
-            address(new Strategy(address(asset), "Tokenized Strategy", bridge))
+            address(
+                new Strategy(address(asset), "Tokenized Strategy", mockBridge)
+            )
         );
 
-        bridge.setup(address(_strategy), receiver);
+        mockBridge.setup(address(_strategy), receiver);
 
         // set keeper
         _strategy.setKeeper(keeper);
