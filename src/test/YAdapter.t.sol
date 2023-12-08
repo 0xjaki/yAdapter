@@ -26,7 +26,7 @@ contract Adapter is Setup {
         );
     }
 
-    function test_ape() public {
+    function test_harvest() public {
         require(strategy.bridgedAssets() == 0, "initial bridged assets are 0");
         uint256 _amount = 1000000;
         uint256 bridgeFees = 123;
@@ -45,7 +45,7 @@ contract Adapter is Setup {
 
         require(strategy.staging() == 0, "staging is empty");
 
-        uint profit = 100000;
+        uint expectedProfit = 100000;
         uint withdrawAmount = 20000;
         //L1 Strategy make profits and holds 900000 now
         //Keeper calcs that in order to maintain ratio 200000 has to be removed
@@ -54,7 +54,6 @@ contract Adapter is Setup {
         vm.prank(receiver);
         asset.increaseAllowance(address(mockBridge), withdrawAmount);
 
-        console.log(strategy.totalAssets());
         uint beforeHarvest = asset.balanceOf(address(strategy));
         vm.prank(keeper);
         strategy.preHarvest(withdrawAmount);
@@ -69,8 +68,11 @@ contract Adapter is Setup {
         require(strategy.staging() == 0, "staking should be 0");
         uint afterHarvest = asset.balanceOf(address(strategy));
 
-        console.log(strategy.totalAssets());
-
         assertEq(beforeHarvest + withdrawAmount, afterHarvest);
+
+        vm.prank(keeper);
+        (uint256 profit, uint256 loss) = strategy.report();
+
+        assertEq(withdrawAmount - bridgeFees, profit);
     }
 }
