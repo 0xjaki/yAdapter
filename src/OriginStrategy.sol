@@ -9,19 +9,19 @@ import "forge-std/console.sol";
 import {Client} from "ccip/contracts/src/v0.8/ccip/libraries/Client.sol";
 import {IRouterClient} from "ccip/contracts/src/v0.8/ccip/interfaces/IRouterClient.sol";
 
-import {IBridge} from "./interfaces/IBridge.sol";
+import {IOriginBridge} from "./interfaces/bridge/IOriginBridge.sol";
 import {IWETH9} from "./interfaces/IWETH9.sol";
-import {IBridgeReceiver} from "./interfaces/IBridgeReceiver.sol";
+import {IBridgeReceiver} from "./interfaces/bridge/IBridgeReceiver.sol";
 
 import {UniswapV2Swapper} from "lib/tokenized-strategy-periphery/src/swappers/UniswapV2Swapper.sol";
 
-contract Strategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
+contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
     using SafeERC20 for ERC20;
 
     constructor(
         address _asset,
         string memory _name,
-        IBridge _iBridge
+        IOriginBridge _iBridge
     ) BaseStrategy(_asset, _name) {
         bridge = _iBridge;
         router = 0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff;
@@ -29,7 +29,7 @@ contract Strategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
     }
 
     address l2Contract;
-    IBridge bridge;
+    IOriginBridge bridge;
 
     uint public bridgedAssets;
     uint public staging;
@@ -40,12 +40,6 @@ contract Strategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
 
     /**
      * @dev Should deploy up to '_amount' of 'asset' in the yield source.
-     *
-     * This function is called at the end of a {deposit} or {mint}
-     * call. Meaning that unless a whitelist is implemented it will
-     * be entirely permissionless and thus can be sandwiched or otherwise
-     * manipulated.
-     *
      * @param _amount The amount of 'asset' that the strategy should attempt
      * to deposit in the yield source.
      */
@@ -53,6 +47,10 @@ contract Strategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
         _bridgeFunds(_amount);
     }
 
+    /**
+     * @dev Bridge funds to the destination chain
+     * @param _amount The amount of 'asset' that should be bridged
+     */
     function _bridgeFunds(uint256 _amount) internal {
         (address feeToken, uint256 feeAmount) = bridge.getDepositFee(
             address(asset),
@@ -94,6 +92,7 @@ contract Strategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
         staging += _amount;
     }
 
+    //When the bridge has received the funds it calls the callback to transfer it back to the strat
     function onFundsReceivedCallback(
         address token,
         uint amount,
@@ -106,6 +105,7 @@ contract Strategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
         }
     }
 
+    //Swap to ETH to get bridge fees
     function swapForEthBridgeFee(uint feeAmount) internal {
         IWETH9 weth = IWETH9(base);
         //Swap assets to WETH
@@ -119,26 +119,10 @@ contract Strategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
 
     /**
      * @dev Will attempt to free the '_amount' of 'asset'.
-     *
-     * The amount of 'asset' that is already loose has already
-     * been accounted for.
-     *
-     * This function is called during {withdraw} and {redeem} calls.
-     * Meaning that unless a whitelist is implemented it will be
-     * entirely permissionless and thus can be sandwiched or otherwise
-     * manipulated.
-     *
-     * Should not rely on asset.balanceOf(address(this)) calls other than
-     * for diff accounting purposes.
-     *
-     * Any difference between `_amount` and what is actually freed will be
-     * counted as a loss and passed on to the withdrawer. This means
-     * care should be taken in times of illiquidity. It may be better to revert
-     * if withdraws are simply illiquid so not to realize incorrect losses.
-     *
      * @param _amount, The amount of 'asset' to be freed.
      */
     function _freeFunds(uint256 _amount) internal override onlyKeepers {
+        //Withdraws funds from the bridge. This is more kind of request that not retrun funds immitidatly
         bridge.withdraw(address(this), _amount);
     }
 

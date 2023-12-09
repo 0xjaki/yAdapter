@@ -4,12 +4,17 @@ pragma solidity 0.8.18;
 import "forge-std/console.sol";
 import {ExtendedTest} from "./ExtendedTest.sol";
 
-import {Strategy, ERC20} from "../../Strategy.sol";
+import {OriginStrategy, ERC20} from "../../OriginStrategy.sol";
 import {IStrategyInterface} from "../../interfaces/IStrategyInterface.sol";
+import {IStrategy} from "@tokenized-strategy/interfaces/IStrategy.sol";
 
 // Inherit the events so they can be checked if desired.
 import {IEvents} from "@tokenized-strategy/interfaces/IEvents.sol";
-import {MockBridge} from "./MockBridge.sol";
+
+import {MockOriginBridge} from "./MockOriginBridge.sol";
+import {DestinationAdapter} from "../../DestinationAdapter.sol";
+import {MockDestinationBridge} from "./MockDestinationBridge.sol";
+import {MockStrategy} from "./MockStrategy.sol";
 
 interface IFactory {
     function governance() external view returns (address);
@@ -22,7 +27,8 @@ interface IFactory {
 contract Setup is ExtendedTest, IEvents {
     // Contract instances that we will use repeatedly.
     ERC20 public asset;
-    IStrategyInterface public strategy;
+    IStrategyInterface public originStrategy;
+    DestinationAdapter public destinationAdapter;
 
     mapping(string => address) public tokenAddrs;
 
@@ -32,10 +38,15 @@ contract Setup is ExtendedTest, IEvents {
     address public management = address(1);
     address public performanceFeeRecipient = address(3);
 
-    address public receiver = address(1234);
+    address public eoa = address(1234);
 
     // Address of the real deployed Factory
     address public factory;
+
+    MockOriginBridge originBridge;
+    MockDestinationBridge destinationBridge;
+
+    MockStrategy mockYieldSource;
 
     // Integer variables that will be used repeatedly.
     uint256 public decimals;
@@ -48,8 +59,6 @@ contract Setup is ExtendedTest, IEvents {
     // Default profit max unlock time is set for 10 days
     uint256 public profitMaxUnlockTime = 10 days;
 
-    MockBridge mockBridge;
-
     function setUp() public virtual {
         _setTokenAddrs();
 
@@ -59,30 +68,50 @@ contract Setup is ExtendedTest, IEvents {
         // Set decimals
         decimals = asset.decimals();
 
-        // Deploy strategy and set variables
-        strategy = IStrategyInterface(setUpStrategy());
+        //Dummy start the destiantionSTrat deploys their capital too
+        mockYieldSource = new MockStrategy(address(asset), "MockStrategy");
 
-        factory = strategy.FACTORY();
+        // Deploy strategy and set variables
+        originBridge = new MockOriginBridge();
+
+        destinationBridge = new MockDestinationBridge();
+        destinationBridge.setup(
+            address(destinationAdapter),
+            address(originBridge)
+        );
+
+        originStrategy = IStrategyInterface(setupOriginStrategy());
+        destinationAdapter = new DestinationAdapter(
+            IStrategy(address(mockYieldSource))
+        );
+
+        originBridge.setup(address(originStrategy), address(eoa));
+        factory = originStrategy.FACTORY();
 
         // label all the used addresses for traces
         vm.label(keeper, "keeper");
         vm.label(factory, "factory");
+        vm.label(eoa, "eoa");
         vm.label(address(asset), "asset");
         vm.label(management, "management");
-        vm.label(address(strategy), "strategy");
+        vm.label(address(originStrategy), "originStrategy");
+        vm.label(address(destinationAdapter), "destinationAdapter");
         vm.label(performanceFeeRecipient, "performanceFeeRecipient");
+        vm.label(address(originBridge), "origin bridge");
+        vm.label(address(destinationBridge), "destination bridge");
     }
 
-    function setUpStrategy() public returns (address) {
-        mockBridge = new MockBridge();
-        // we save the strategy as a IStrategyInterface to give it the needed interface
+    function setupOriginStrategy() public returns (address) {
+        // we save the sOriginStrategyas a IStrategyInterface to give it the needed interface
         IStrategyInterface _strategy = IStrategyInterface(
             address(
-                new Strategy(address(asset), "Tokenized Strategy", mockBridge)
+                new OriginStrategy(
+                    address(asset),
+                    "Origin Strategy",
+                    originBridge
+                )
             )
         );
-
-        mockBridge.setup(address(_strategy), receiver);
 
         // set keeper
         _strategy.setKeeper(keeper);
@@ -147,7 +176,7 @@ contract Setup is ExtendedTest, IEvents {
         IFactory(factory).set_protocol_fee_bps(_protocolFee);
 
         vm.prank(management);
-        strategy.setPerformanceFee(_performanceFee);
+        originStrategy.setPerformanceFee(_performanceFee);
     }
 
     function _setTokenAddrs() internal {

@@ -1,4 +1,7 @@
-interface IBridge {
+// SPDX-License-Identifier: AGPL-3.0
+pragma solidity 0.8.18;
+
+interface IOriginBridge {
     function deposit(
         address receiver,
         address token,
@@ -17,3 +20,4 @@ interface IBridge {
         uint256 _amount
     ) external returns (address, uint256);
 }
+ 

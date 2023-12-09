@@ -1,11 +1,14 @@
-pragma solidity ^0.8.0;
+// SPDX-License-Identifier: AGPL-3.0
+pragma solidity 0.8.18;
 
-import "../../interfaces/IBridge.sol";
-import "../../interfaces/IBridgeReceiver.sol";
+import "../../interfaces/bridge/IOriginBridge.sol";
+import "../../interfaces/bridge/IBridgeReceiver.sol";
+
+import "forge-std/console.sol";
 
 import {BaseStrategy, ERC20} from "@tokenized-strategy/BaseStrategy.sol";
 
-contract MockBridge is IBridge {
+contract MockOriginBridge is IOriginBridge {
     IBridgeReceiver sender;
     address receiver;
 
@@ -51,8 +54,11 @@ contract MockBridge is IBridge {
         uint256 _amount,
         uint256 _left
     ) external {
+        console.log("BBB");
+        console.log(ERC20(token).balanceOf(address(this)));
+        console.log("-");
         require(
-            ERC20(token).transferFrom(receiver, address(sender), _amount),
+            ERC20(token).transfer(address(sender), _amount),
             "Transfeor failed"
         );
         sender.onFundsReceivedCallback(token, _amount, _left);

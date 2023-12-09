@@ -1,33 +1,36 @@
+// SPDX-License-Identifier: AGPL-3.0
+pragma solidity 0.8.18;
+
 import {Setup, ERC20, IStrategyInterface} from "./utils/Setup.sol";
 import "forge-std/console.sol";
 
-contract Adapter is Setup {
+contract OriginStrategy is Setup {
     function setUp() public virtual override {
         super.setUp();
     }
 
     function test_deposit() public {
-        require(strategy.bridgedAssets() == 0, "initial bridged assets are 0");
+        require(originStrategy.bridgedAssets() == 0, "initial bridged assets are 0");
         uint256 _amount = 1000000;
         uint256 bridgeFees = 123;
         // Deposit into strategy
-        mintAndDepositIntoStrategy(strategy, user, _amount);
+        mintAndDepositIntoStrategy(originStrategy, user, _amount);
         // TODO: Deposit everything to vault
         checkStrategyTotals(
-            strategy,
+            originStrategy,
             _amount,
             800000 + bridgeFees,
             200000 - bridgeFees
         );
 
         require(
-            strategy.bridgedAssets() == 800000,
+            originStrategy.bridgedAssets() == 800000,
             "assets havent been bridged"
         );
     }
 
     function test_ape() public {
-        require(strategy.bridgedAssets() == 0, "initial bridged assets are 0");
+        require(originStrategy.bridgedAssets() == 0, "initial bridged assets are 0");
         uint256 _amount = 1000000;
         uint256 depositFees = 123;
         uint256 withdrawlFees = 456;
@@ -35,16 +38,16 @@ contract Adapter is Setup {
         uint balanceDestiny = 800000;
         uint balanceSource = 200000;
         // Deposit into strategy
-        mintAndDepositIntoStrategy(strategy, user, _amount);
+        mintAndDepositIntoStrategy(originStrategy, user, _amount);
         // TODO: Deposit everything to vault
         checkStrategyTotals(
-            strategy,
+            originStrategy,
             _amount,
             balanceDestiny + depositFees,
             balanceSource - depositFees
         );
 
-        require(strategy.staging() == 0, "staging is empty");
+        require(originStrategy.staging() == 0, "staging is empty");
 
         uint expectedProfit = 100000;
         uint withdrawAmount = 20000;
@@ -52,29 +55,28 @@ contract Adapter is Setup {
         //Keeper calcs that in order to maintain ratio 200000 has to be removed
 
         //Grant bridge allowance
-        vm.prank(receiver);
-        asset.increaseAllowance(address(mockBridge), withdrawAmount);
-        console.log(strategy.pricePerShare());
+        vm.prank(eoa);
+        asset.transfer(address(originBridge), withdrawAmount);
 
-        uint beforeHarvest = asset.balanceOf(address(strategy));
+        uint beforeHarvest = asset.balanceOf(address(originStrategy));
         vm.prank(keeper);
-        strategy.preHarvest(withdrawAmount);
+        originStrategy.preHarvest(withdrawAmount);
 
         require(
-            strategy.staging() == withdrawAmount,
+            originStrategy.staging() == withdrawAmount,
             "withdraw amount is staged"
         );
 
         uint leftInDestiny = balanceDestiny + expectedProfit - withdrawAmount;
 
-        mockBridge.triggerFundsReceivedCallback(
+        originBridge.triggerFundsReceivedCallback(
             address(asset),
             withdrawAmount,
             leftInDestiny
         );
 
-        require(strategy.staging() == 0, "staking should be 0");
-        uint afterHarvest = asset.balanceOf(address(strategy));
+        require(originStrategy.staging() == 0, "staking should be 0");
+        uint afterHarvest = asset.balanceOf(address(originStrategy));
 
         //Dai that has been withdrawn has reached the strat
         assertEq(
@@ -84,7 +86,7 @@ contract Adapter is Setup {
         );
 
         vm.prank(keeper);
-        (uint256 profit, uint256 loss) = strategy.report();
+        (uint256 profit, uint256 loss) = originStrategy.report();
 
         uint totalAssetsExpected = leftInDestiny +
             balanceSource +
@@ -99,7 +101,7 @@ contract Adapter is Setup {
             "false profit"
         );
         assertEq(
-            strategy.totalAssets(),
+            originStrategy.totalAssets(),
             totalAssetsExpected,
             "false totalAsset"
         );
