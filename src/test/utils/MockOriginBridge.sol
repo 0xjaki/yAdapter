@@ -54,9 +54,6 @@ contract MockOriginBridge is IOriginBridge {
         uint256 _amount,
         uint256 _left
     ) external {
-        console.log("BBB");
-        console.log(ERC20(token).balanceOf(address(this)));
-        console.log("-");
         require(
             ERC20(token).transfer(address(sender), _amount),
             "Transfeor failed"

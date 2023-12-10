@@ -6,7 +6,7 @@ interface IDestinationBridge {
         address receiver,
         address token,
         uint256 _amount
-    ) external payable;
+    ) external payable returns (uint);
 
     function getRedeemFee(
         address token,

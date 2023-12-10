@@ -46,7 +46,7 @@ contract Setup is ExtendedTest, IEvents {
     MockOriginBridge originBridge;
     MockDestinationBridge destinationBridge;
 
-    MockStrategy mockYieldSource;
+    IStrategyInterface mockYieldSource;
 
     // Integer variables that will be used repeatedly.
     uint256 public decimals;
@@ -69,8 +69,11 @@ contract Setup is ExtendedTest, IEvents {
         decimals = asset.decimals();
 
         //Dummy start the destiantionSTrat deploys their capital too
-        mockYieldSource = new MockStrategy(address(asset), "MockStrategy");
+        mockYieldSource = IStrategyInterface(setupMockStrategy());
 
+        destinationAdapter = new DestinationAdapter(
+            IStrategy(address(mockYieldSource))
+        );
         // Deploy strategy and set variables
         originBridge = new MockOriginBridge();
 
@@ -81,9 +84,6 @@ contract Setup is ExtendedTest, IEvents {
         );
 
         originStrategy = IStrategyInterface(setupOriginStrategy());
-        destinationAdapter = new DestinationAdapter(
-            IStrategy(address(mockYieldSource))
-        );
 
         originBridge.setup(address(originStrategy), address(eoa));
         factory = originStrategy.FACTORY();
@@ -103,6 +103,7 @@ contract Setup is ExtendedTest, IEvents {
 
     function setupOriginStrategy() public returns (address) {
         // we save the sOriginStrategyas a IStrategyInterface to give it the needed interface
+
         IStrategyInterface _strategy = IStrategyInterface(
             address(
                 new OriginStrategy(
@@ -111,6 +112,23 @@ contract Setup is ExtendedTest, IEvents {
                     originBridge
                 )
             )
+        );
+        // set keeper
+        _strategy.setKeeper(keeper);
+        // set treasury
+        _strategy.setPerformanceFeeRecipient(performanceFeeRecipient);
+        // set management of the strategy
+        _strategy.setPendingManagement(management);
+
+        vm.prank(management);
+        _strategy.acceptManagement();
+
+        return address(_strategy);
+    }
+
+    function setupMockStrategy() public returns (address) {
+        IStrategyInterface _strategy = IStrategyInterface(
+            address(new MockStrategy(address(asset), "MockStrategy"))
         );
 
         // set keeper
@@ -122,6 +140,8 @@ contract Setup is ExtendedTest, IEvents {
 
         vm.prank(management);
         _strategy.acceptManagement();
+
+       
 
         return address(_strategy);
     }
@@ -165,18 +185,22 @@ contract Setup is ExtendedTest, IEvents {
         deal(address(_asset), _to, balanceBefore + _amount);
     }
 
-    function setFees(uint16 _protocolFee, uint16 _performanceFee) public {
-        address gov = IFactory(factory).governance();
+    function setFees(
+        IStrategyInterface target,
+        uint16 _protocolFee,
+        uint16 _performanceFee
+    ) public {
+       // address gov = IFactory(factory).governance();
 
         // Need to make sure there is a protocol fee recipient to set the fee.
-        vm.prank(gov);
-        IFactory(factory).set_protocol_fee_recipient(gov);
+       // vm.prank(gov);
+       // IFactory(factory).set_protocol_fee_recipient(gov);
 
-        vm.prank(gov);
-        IFactory(factory).set_protocol_fee_bps(_protocolFee);
+       // vm.prank(gov);
+       // IFactory(factory).set_protocol_fee_bps(_protocolFee);
 
         vm.prank(management);
-        originStrategy.setPerformanceFee(_performanceFee);
+        target.setPerformanceFee(_performanceFee);
     }
 
     function _setTokenAddrs() internal {

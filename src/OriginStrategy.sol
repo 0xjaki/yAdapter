@@ -6,8 +6,7 @@ import {BaseStrategy, ERC20} from "@tokenized-strategy/BaseStrategy.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "forge-std/console.sol";
 
-import {Client} from "ccip/contracts/src/v0.8/ccip/libraries/Client.sol";
-import {IRouterClient} from "ccip/contracts/src/v0.8/ccip/interfaces/IRouterClient.sol";
+
 
 import {IOriginBridge} from "./interfaces/bridge/IOriginBridge.sol";
 import {IWETH9} from "./interfaces/IWETH9.sol";
@@ -154,7 +153,7 @@ contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
         returns (uint256 _totalAssets)
     {
         //Todo maybe bridge has to do report for bridge asssets too
-        _totalAssets = asset.balanceOf(address(this)) + bridgedAssets - staging;
+        _totalAssets = asset.balanceOf(address(this)) + bridgedAssets ;
     }
 
     /*//////////////////////////////////////////////////////////////

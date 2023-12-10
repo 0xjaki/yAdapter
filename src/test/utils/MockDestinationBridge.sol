@@ -22,10 +22,10 @@ contract MockDestinationBridge is IDestinationBridge, UniswapV2Swapper {
 
     //Called by connext to reddem funds from the adapter
     function redeem(
-        address _receiver,
         address token,
+        address _receiver,
         uint256 _amount
-    ) external payable {
+    ) external payable returns (uint256) {
         uint received = adapter.onFundsRequested(token, _amount);
 
         //Get withdrawl fee
@@ -38,10 +38,14 @@ contract MockDestinationBridge is IDestinationBridge, UniswapV2Swapper {
 
         uint toBeBridged = received - feeAmount;
 
+        uint remainingBalance = ERC20(token).balanceOf(address(this));
+
         require(
-            ERC20(token).transfer(address(this), toBeBridged),
+            ERC20(token).transfer(_receiver, remainingBalance),
             "Transfeor failed"
         );
+
+        return remainingBalance;
     }
 
     function getRedeemFee(
@@ -62,10 +66,14 @@ contract MockDestinationBridge is IDestinationBridge, UniswapV2Swapper {
             ERC20(token).transfer(address(adapter), _amount),
             "Transfeor failed"
         );
+
         adapter.onFundsReceivedCallback(token, _amount, _left);
     }
 
     function swapForEthBridgeFee(address token, uint feeAmount) internal {
+        router = 0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff;
+        base = 0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270;
+
         IWETH9 weth = IWETH9(0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270);
         //Swap assets to WETH
         _swapFrom(address(token), address(weth), feeAmount, feeAmount);

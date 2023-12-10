@@ -6,6 +6,8 @@ import {IDestinationBridge} from "./interfaces/bridge/IDestinationBridge.sol";
 import {IStrategy} from "@tokenized-strategy/interfaces/IStrategy.sol";
 import {BaseStrategy, ERC20} from "@tokenized-strategy/BaseStrategy.sol";
 
+import "forge-std/console.sol";
+
 contract DestinationAdapter is IBridgeReceiver, IBridgeSender {
     IStrategy vault;
 
@@ -23,6 +25,7 @@ contract DestinationAdapter is IBridgeReceiver, IBridgeSender {
         uint amount,
         uint left
     ) external override {
+        ERC20(token).increaseAllowance(address(vault), amount);
         uint deposited = vault.deposit(amount, address(this));
         uint p = vault.pricePerShare();
         depositors[msg.sender] += p * deposited;
@@ -42,6 +45,7 @@ contract DestinationAdapter is IBridgeReceiver, IBridgeSender {
         );
         depositors[msg.sender] -= received;
         ERC20(vault.asset()).transfer(msg.sender, received);
-        return received;
+        //Todo deal with withdrawl limit
+        return amount;
     }
 }
