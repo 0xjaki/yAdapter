@@ -6,8 +6,6 @@ import {BaseStrategy, ERC20} from "@tokenized-strategy/BaseStrategy.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "forge-std/console.sol";
 
-
-
 import {IOriginBridge} from "./interfaces/bridge/IOriginBridge.sol";
 import {IWETH9} from "./interfaces/IWETH9.sol";
 import {IBridgeReceiver} from "./interfaces/bridge/IBridgeReceiver.sol";
@@ -31,7 +29,6 @@ contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
     IOriginBridge bridge;
 
     uint public bridgedAssets;
-    uint public staging;
 
     /*//////////////////////////////////////////////////////////////
                 NEEDED TO BE OVERRIDDEN BY STRATEGIST
@@ -61,8 +58,11 @@ contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
 
         //Fee token is native ETH
         if (feeToken == address(0)) {
+            //swap part of the asset to cover fees
             swapForEthBridgeFee(feeAmount);
+            //grant bridge the allowance to take asset from strat
             asset.increaseAllowance(address(bridge), _amount);
+            //send fund to bridge
             bridge.deposit{value: feeAmount}(
                 l2Contract,
                 address(asset),
@@ -71,6 +71,7 @@ contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
         } else {
             //TODO add ERC20 fee token
         }
+        //account bridge asssets
         bridgedAssets += toBeBridged;
     }
 
@@ -87,8 +88,6 @@ contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
         } else {
             //TODO add ERC20 fee token
         }
-        //Todo has to swap for fees
-        staging += _amount;
     }
 
     //When the bridge has received the funds it calls the callback to transfer it back to the strat
@@ -97,11 +96,7 @@ contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
         uint amount,
         uint left
     ) external {
-        staging -= amount;
         bridgedAssets = left;
-        if (staging > 0) {
-            //we're taking a loss
-        }
     }
 
     //Swap to ETH to get bridge fees
@@ -153,7 +148,7 @@ contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
         returns (uint256 _totalAssets)
     {
         //Todo maybe bridge has to do report for bridge asssets too
-        _totalAssets = asset.balanceOf(address(this)) + bridgedAssets ;
+        _totalAssets = asset.balanceOf(address(this)) + bridgedAssets;
     }
 
     /*//////////////////////////////////////////////////////////////

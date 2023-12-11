@@ -69,10 +69,6 @@ contract OriginStrategy is Setup {
         vm.prank(keeper);
         originStrategy.preHarvest(withdrawAmount);
 
-        require(
-            originStrategy.staging() == withdrawAmount,
-            "withdraw amount is staged"
-        );
 
         uint leftInDestiny = balanceDestiny + expectedProfit - withdrawAmount;
 
@@ -221,11 +217,7 @@ contract OriginStrategy is Setup {
         vm.prank(keeper);
         originStrategy.preHarvest(withdrawAmount);
 
-        require(
-            originStrategy.staging() == withdrawAmount,
-            "withdraw amount is staged"
-        );
-
+    
         //Grant bridge allowance
         vm.prank(eoa);
         //DestinationBrdige withdraws funds from adapter and send them to eoa
