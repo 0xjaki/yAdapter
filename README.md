@@ -1,3 +1,7 @@
+#yAdapter
+
+Check out https://hackmd.io/S1ULHuPVTOWGtHL1prwnHQ?both for a more detailed explanation
+
 # Tokenized Strategy Mix for Yearn V3 strategies
 
 This repo will allow you to write, test and deploy V3 "Tokenized Strategies" using [Foundry](https://book.getfoundry.sh/).
