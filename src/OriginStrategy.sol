@@ -28,20 +28,43 @@ contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
     }
 
     address public destinationAdapter;
-    IOriginBridge bridge;
+    IOriginBridge public bridge;
 
     uint public bridgedAssets;
+
+    modifier onlyBridge() {
+        require(msg.sender == address(bridge), "only bridge");
+        _;
+    }
 
     function setDestinationAdapter(address _adapter) external onlyManagement {
         require(_adapter != address(0), "adapter is zero address");
         destinationAdapter = _adapter;
     }
 
-    /**
-     * @dev Should deploy up to '_amount' of 'asset' in the yield source.
-     * @param _amount The amount of 'asset' that the strategy should attempt
-     * to deposit in the yield source.
-     */
+    function preHarvest(uint _amount) external onlyKeepers {
+        (address feeToken, uint256 feeAmount) = bridge.getWithdrawlFee(
+            address(asset),
+            _amount
+        );
+
+        if (feeToken == address(0)) {
+            swapForEthBridgeFee(feeAmount);
+            bridge.withdraw{value: feeAmount}(address(asset), _amount);
+        } else {
+            //TODO add ERC20 fee token
+        }
+    }
+
+    //When the bridge has received the funds it calls the callback to transfer it back to the strat
+    function onFundsReceivedCallback(
+        address,
+        uint,
+        bytes calldata data
+    ) external onlyBridge {
+        bridgedAssets = abi.decode(data, (uint256));
+    }
+
     function _deployFunds(uint256 _amount) internal override {
         _bridgeFunds(_amount);
     }
@@ -80,30 +103,6 @@ contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
         bridgedAssets += toBeBridged;
     }
 
-    //Request funds from the bridge. The keeper knows how much to request to maintain 80/20 balance
-    function preHarvest(uint _amount) external onlyKeepers {
-        (address feeToken, uint256 feeAmount) = bridge.getWithdrawlFee(
-            address(asset),
-            _amount
-        );
-
-        if (feeToken == address(0)) {
-            swapForEthBridgeFee(feeAmount);
-            bridge.withdraw{value: feeAmount}(address(asset), _amount);
-        } else {
-            //TODO add ERC20 fee token
-        }
-    }
-
-    //When the bridge has received the funds it calls the callback to transfer it back to the strat
-    function onFundsReceivedCallback(
-        address token,
-        uint amount,
-        bytes calldata data
-    ) external {
-        bridgedAssets = abi.decode(data, (uint256));
-    }
-
     //Swap to ETH to get bridge fees
     function swapForEthBridgeFee(uint feeAmount) internal {
         IWETH9 weth = IWETH9(base);
@@ -112,9 +111,6 @@ contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
         require(weth.balanceOf(address(this)) >= feeAmount, "cant pay bridge");
         weth.withdraw(feeAmount);
     }
-
-    //TODO should revert if its not WETH
-    receive() external payable {}
 
     /**
      * @dev Will attempt to free the '_amount' of 'asset'.
@@ -126,24 +122,6 @@ contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
     }
 
     /**
-     * @dev Internal function to harvest all rewards, redeploy any idle
-     * funds and return an accurate accounting of all funds currently
-     * held by the Strategy.
-     *
-     * This should do any needed harvesting, rewards selling, accrual,
-     * redepositing etc. to get the most accurate view of current assets.
-     *
-     * NOTE: All applicable assets including loose assets should be
-     * accounted for in this function.
-     *
-     * Care should be taken when relying on oracles or swap values rather
-     * than actual amounts as all Strategy profit/loss accounting will
-     * be done based on this returned value.
-     *
-     * This can still be called post a shutdown, a strategist can check
-     * `TokenizedStrategy.isShutdown()` to decide if funds should be
-     * redeployed or simply realize any profits/losses.
-     *
      * @return _totalAssets A trusted and accurate account for the total
      * amount of 'asset' the strategy currently holds including idle funds.
      */
@@ -152,10 +130,12 @@ contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
         override
         returns (uint256 _totalAssets)
     {
-        //Todo maybe bridge has to do report for bridge asssets too
         _totalAssets = asset.balanceOf(address(this)) + bridgedAssets;
     }
 
+    receive() external payable {
+        require(msg.sender == address(base), "only WETH");
+    }
     /*//////////////////////////////////////////////////////////////
                     OPTIONAL TO OVERRIDE BY STRATEGIST
     //////////////////////////////////////////////////////////////*/
