@@ -10,4 +10,6 @@ interface IStrategyInterface is IStrategy {
     function staging() external returns (uint);
 
     function preHarvest(uint _amount) external;
+
+    function setDestinationAdapter(address _adapter) external;
 }

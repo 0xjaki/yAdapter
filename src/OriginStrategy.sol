@@ -18,21 +18,24 @@ contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
     constructor(
         address _asset,
         string memory _name,
-        IOriginBridge _iBridge
+        IOriginBridge _iBridge,
+        address _uniV2Router,
+        address _weth
     ) BaseStrategy(_asset, _name) {
         bridge = _iBridge;
-        router = 0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff;
-        base = 0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270;
+        router = _uniV2Router;
+        base = _weth;
     }
 
-    address l2Contract;
+    address public destinationAdapter;
     IOriginBridge bridge;
 
     uint public bridgedAssets;
 
-    /*//////////////////////////////////////////////////////////////
-                NEEDED TO BE OVERRIDDEN BY STRATEGIST
-    //////////////////////////////////////////////////////////////*/
+    function setDestinationAdapter(address _adapter) external onlyManagement {
+        require(_adapter != address(0), "adapter is zero address");
+        destinationAdapter = _adapter;
+    }
 
     /**
      * @dev Should deploy up to '_amount' of 'asset' in the yield source.
@@ -48,6 +51,8 @@ contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
      * @param _amount The amount of 'asset' that should be bridged
      */
     function _bridgeFunds(uint256 _amount) internal {
+        require(destinationAdapter != address(0), "adapter is zero");
+
         (address feeToken, uint256 feeAmount) = bridge.getDepositFee(
             address(asset),
             _amount
@@ -64,7 +69,7 @@ contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
             asset.increaseAllowance(address(bridge), _amount);
             //send fund to bridge
             bridge.deposit{value: feeAmount}(
-                l2Contract,
+                destinationAdapter,
                 address(asset),
                 toBeBridged
             );

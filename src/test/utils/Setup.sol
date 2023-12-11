@@ -109,7 +109,10 @@ contract Setup is ExtendedTest, IEvents {
                 new OriginStrategy(
                     address(asset),
                     "Origin Strategy",
-                    originBridge
+                    originBridge,
+                    //QuickswapRouter
+                    0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff,
+                    0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270
                 )
             )
         );
@@ -122,6 +125,9 @@ contract Setup is ExtendedTest, IEvents {
 
         vm.prank(management);
         _strategy.acceptManagement();
+
+        vm.prank(management);
+        _strategy.setDestinationAdapter(address(destinationAdapter));
 
         return address(_strategy);
     }
@@ -140,8 +146,6 @@ contract Setup is ExtendedTest, IEvents {
 
         vm.prank(management);
         _strategy.acceptManagement();
-
-       
 
         return address(_strategy);
     }
@@ -190,14 +194,14 @@ contract Setup is ExtendedTest, IEvents {
         uint16 _protocolFee,
         uint16 _performanceFee
     ) public {
-       // address gov = IFactory(factory).governance();
+        // address gov = IFactory(factory).governance();
 
         // Need to make sure there is a protocol fee recipient to set the fee.
-       // vm.prank(gov);
-       // IFactory(factory).set_protocol_fee_recipient(gov);
+        // vm.prank(gov);
+        // IFactory(factory).set_protocol_fee_recipient(gov);
 
-       // vm.prank(gov);
-       // IFactory(factory).set_protocol_fee_bps(_protocolFee);
+        // vm.prank(gov);
+        // IFactory(factory).set_protocol_fee_bps(_protocolFee);
 
         vm.prank(management);
         target.setPerformanceFee(_performanceFee);
