@@ -10,21 +10,23 @@ import {IOriginBridge} from "./interfaces/bridge/IOriginBridge.sol";
 import {IWETH9} from "./interfaces/IWETH9.sol";
 import {IBridgeReceiver} from "./interfaces/bridge/IBridgeReceiver.sol";
 
-import {UniswapV2Swapper} from "lib/tokenized-strategy-periphery/src/swappers/UniswapV2Swapper.sol";
+import {UniswapV3Swapper} from "lib/tokenized-strategy-periphery/src/swappers/UniswapV3Swapper.sol";
 
-contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
+contract OriginStrategy is BaseStrategy, UniswapV3Swapper, IBridgeReceiver {
     using SafeERC20 for ERC20;
 
     constructor(
         address _asset,
         string memory _name,
         IOriginBridge _iBridge,
-        address _uniV2Router,
+        address _uniV3Router,
         address _weth
     ) BaseStrategy(_asset, _name) {
         bridge = _iBridge;
-        router = _uniV2Router;
+        router = _uniV3Router;
         base = _weth;
+
+        _setUniFees(_asset, _weth, 3000);
     }
 
     address public destinationAdapter;
@@ -42,6 +44,8 @@ contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
         destinationAdapter = _adapter;
     }
 
+    //TODO maybe rename to something like balance eth.
+    //TODO should also support deposit in case there is to much idle
     function preHarvest(uint _amount) external onlyKeepers {
         (address feeToken, uint256 feeAmount) = bridge.getWithdrawlFee(
             address(asset),
@@ -82,6 +86,7 @@ contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
         );
 
         //We want to keep 20 idle
+        //TODO maybe move ratio to state var
         uint toBeBridged = (_amount * 800) / 1000;
 
         //Fee token is native ETH
@@ -106,8 +111,12 @@ contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
     //Swap to ETH to get bridge fees
     function swapForEthBridgeFee(uint feeAmount) internal {
         IWETH9 weth = IWETH9(base);
+
+        //Todo calc maxAmountIn properly
+        uint maxAmountIn = asset.balanceOf(address(this));
+
         //Swap assets to WETH
-        _swapFrom(address(asset), address(weth), feeAmount, feeAmount);
+        _swapTo(address(asset), address(weth), feeAmount, maxAmountIn);
         require(weth.balanceOf(address(this)) >= feeAmount, "cant pay bridge");
         weth.withdraw(feeAmount);
     }
@@ -134,6 +143,7 @@ contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
     }
 
     receive() external payable {
+        //Receive is called when withdrawing ETH from WETH contract to retrive bridge fees
         require(msg.sender == address(base), "only WETH");
     }
     /*//////////////////////////////////////////////////////////////

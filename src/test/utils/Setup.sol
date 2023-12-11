@@ -110,8 +110,9 @@ contract Setup is ExtendedTest, IEvents {
                     address(asset),
                     "Origin Strategy",
                     originBridge,
-                    //QuickswapRouter
-                    0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff,
+                    //UniswapV3Router
+                    0xE592427A0AEce92De3Edee1F18E0157C05861564,
+                    //Polygon WETH
                     0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270
                 )
             )
