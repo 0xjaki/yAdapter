@@ -23,7 +23,7 @@ contract DestinationAdapter is IBridgeReceiver, IBridgeSender {
     function onFundsReceivedCallback(
         address token,
         uint amount,
-        uint left
+        bytes calldata data
     ) external override {
         ERC20(token).increaseAllowance(address(vault), amount);
         uint deposited = vault.deposit(amount, address(this));
@@ -33,7 +33,8 @@ contract DestinationAdapter is IBridgeReceiver, IBridgeSender {
 
     function onFundsRequested(
         address token,
-        uint amount
+        uint amount,
+        bytes calldata data
     ) external returns (uint) {
         //Figure out how to deal with maxLoss
         uint maxLoss = 0;

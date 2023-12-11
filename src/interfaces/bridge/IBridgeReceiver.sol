@@ -5,6 +5,6 @@ interface IBridgeReceiver {
     function onFundsReceivedCallback(
         address token,
         uint amount,
-        uint left
+        bytes calldata data
     ) external;
 }

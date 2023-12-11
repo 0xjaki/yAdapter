@@ -26,7 +26,7 @@ contract MockDestinationBridge is IDestinationBridge, UniswapV2Swapper {
         address _receiver,
         uint256 _amount
     ) external payable returns (uint256) {
-        uint received = adapter.onFundsRequested(token, _amount);
+        uint received = adapter.onFundsRequested(token, _amount, new bytes(0));
 
         //Get withdrawl fee
         (address feeToken, uint256 feeAmount) = getRedeemFee(
@@ -67,7 +67,7 @@ contract MockDestinationBridge is IDestinationBridge, UniswapV2Swapper {
             "Transfeor failed"
         );
 
-        adapter.onFundsReceivedCallback(token, _amount, _left);
+        adapter.onFundsReceivedCallback(token, _amount, abi.encode(_left));
     }
 
     function swapForEthBridgeFee(address token, uint feeAmount) internal {

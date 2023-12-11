@@ -58,7 +58,7 @@ contract MockOriginBridge is IOriginBridge {
             ERC20(token).transfer(address(sender), _amount),
             "Transfeor failed"
         );
-        sender.onFundsReceivedCallback(token, _amount, _left);
+        sender.onFundsReceivedCallback(token, _amount, abi.encode(_left));
     }
 
     // Fallback function must be declared as external.

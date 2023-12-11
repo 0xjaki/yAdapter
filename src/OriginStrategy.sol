@@ -94,9 +94,9 @@ contract OriginStrategy is BaseStrategy, UniswapV2Swapper, IBridgeReceiver {
     function onFundsReceivedCallback(
         address token,
         uint amount,
-        uint left
+        bytes calldata data
     ) external {
-        bridgedAssets = left;
+        bridgedAssets = abi.decode(data, (uint256));
     }
 
     //Swap to ETH to get bridge fees
