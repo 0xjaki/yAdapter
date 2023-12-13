@@ -8,7 +8,9 @@ import {BaseStrategy, ERC20} from "@tokenized-strategy/BaseStrategy.sol";
 
 import "forge-std/console.sol";
 
-contract DestinationAdapter is IBridgeReceiver, IBridgeSender {
+interface IDestinationAdapter is IBridgeReceiver, IBridgeSender {}
+
+contract DestinationAdapter is IDestinationAdapter {
     IStrategy vault;
 
     mapping(address => uint256) depositors;
@@ -23,7 +25,7 @@ contract DestinationAdapter is IBridgeReceiver, IBridgeSender {
     function onFundsReceivedCallback(
         address token,
         uint amount,
-        bytes calldata data
+        bytes calldata
     ) external override {
         ERC20(token).increaseAllowance(address(vault), amount);
         uint deposited = vault.deposit(amount, address(this));
@@ -32,12 +34,13 @@ contract DestinationAdapter is IBridgeReceiver, IBridgeSender {
     }
 
     function onFundsRequested(
-        address token,
+        address,
         uint amount,
-        bytes calldata data
+        bytes calldata
     ) external returns (uint) {
         //Figure out how to deal with maxLoss
         uint maxLoss = 0;
+        //convert to shares
         uint received = vault.withdraw(
             amount,
             address(this),

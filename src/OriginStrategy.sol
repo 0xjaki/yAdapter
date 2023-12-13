@@ -121,6 +121,7 @@ contract OriginStrategy is BaseStrategy, UniswapV3Swapper, IBridgeReceiver {
         weth.withdraw(feeAmount);
     }
 
+    //TODO just do nothing
     /**
      * @dev Will attempt to free the '_amount' of 'asset'.
      * @param _amount, The amount of 'asset' to be freed.
@@ -139,6 +140,7 @@ contract OriginStrategy is BaseStrategy, UniswapV3Swapper, IBridgeReceiver {
         override
         returns (uint256 _totalAssets)
     {
+        //TODO subtract min costs of briding from totalAssets 
         _totalAssets = asset.balanceOf(address(this)) + bridgedAssets;
     }
 
