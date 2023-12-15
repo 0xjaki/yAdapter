@@ -8,17 +8,13 @@ import {IBridgeReceiver} from "src/interfaces/bridge/IBridgeReceiver.sol";
 
 import {BaseStrategy, ERC20} from "@tokenized-strategy/BaseStrategy.sol";
 import {ConnextBase} from "./ConnextBase.sol";
+import "forge-std/console.sol";
 
 contract ConnextOriginBridge is ConnextBase, IXReceiver, IOriginBridge {
-    constructor(
-        uint32 _destinationDomain,
-        address _originStrategy,
-        address _connext,
-        address _admin
-    ) {
+    constructor(uint32 _destinationDomain, address _connext, address _admin) {
         //The domain of the destination chain
         destinationDomain = _destinationDomain;
-        originStrategy = _originStrategy;
+
         connext = IConnext(_connext);
         admin = _admin;
     }
@@ -48,6 +44,10 @@ contract ConnextOriginBridge is ConnextBase, IXReceiver, IOriginBridge {
         address _destinationBridge
     ) external onlyAdmin {
         destinationBridge = _destinationBridge;
+    }
+
+    function setOriginStrategy(address _originStrategy) external onlyAdmin {
+        originStrategy = _originStrategy;
     }
 
     function getDepositFee(
@@ -120,7 +120,7 @@ contract ConnextOriginBridge is ConnextBase, IXReceiver, IOriginBridge {
         require(selector == REDEEM_SELECTOR, "invalid operation");
 
         require(
-            ERC20(_asset).transfer(address(this), _amount),
+            ERC20(_asset).transfer(originStrategy, _amount),
             "Transfer failed"
         );
 

@@ -41,15 +41,25 @@ contract DestinationAdapter is IDestinationAdapter {
         //Figure out how to deal with maxLoss
         uint maxLoss = 0;
         //convert to shares
-        uint received = vault.withdraw(
-            amount,
+
+        uint balanceBefore = ERC20(vault.asset()).balanceOf(address(this));
+        vault.withdraw(
+            vault.convertToShares(amount),
             address(this),
             address(this),
             maxLoss
         );
-        depositors[msg.sender] -= received;
-        ERC20(vault.asset()).transfer(msg.sender, received);
+        uint balanceAfter = ERC20(vault.asset()).balanceOf(address(this));
+
+        console.log("---");
+        console.log("balance adapter");
+        console.log(balanceBefore);
+        console.log(balanceAfter);
+        console.log("---");
+
+        depositors[msg.sender] -= balanceAfter;
+        ERC20(vault.asset()).transfer(msg.sender, balanceAfter);
         //Todo deal with withdrawl limit
-        return amount;
+        return balanceAfter;
     }
 }

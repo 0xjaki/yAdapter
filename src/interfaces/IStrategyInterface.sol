@@ -14,4 +14,6 @@ interface IStrategyInterface is IStrategy {
     function calcWithdrawlAmount() external view returns (uint);
 
     function depositFunds(uint256 _amount) external payable;
+
+    function requestWithdrawl(uint256 _amount) external payable;
 }

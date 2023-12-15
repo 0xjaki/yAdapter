@@ -86,9 +86,8 @@ contract OriginStrategy is BaseStrategy, IBridgeReceiver {
     }
 
     //Keeper can tend to request additional funds
-    function requestWithdrawl() external payable onlyKeepers {
-        uint withDrawlAmount = calcWithdrawlAmount();
-        bridge.withdraw{value: msg.value}(address(asset), withDrawlAmount);
+    function requestWithdrawl(uint256 _amount) external payable onlyKeepers {
+        bridge.withdraw{value: msg.value}(address(asset), _amount);
     }
 
     /**

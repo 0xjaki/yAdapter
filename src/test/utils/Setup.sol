@@ -91,7 +91,6 @@ contract Setup is ExtendedTest, IEvents {
 
         originBridge = new ConnextOriginBridge(
             destinationDomain,
-            address(originStrategy),
             address(connext),
             keeper
         );
@@ -105,6 +104,9 @@ contract Setup is ExtendedTest, IEvents {
 
         vm.prank(keeper);
         originBridge.setDestinationBridge(address(destinationBridge));
+        
+        vm.prank(keeper);
+        originBridge.setOriginStrategy(address(originStrategy));
 
         vm.prank(keeper);
         destinationBridge.setOriginBridge(address(originBridge));

@@ -38,7 +38,23 @@ contract MockConnextRouter is ConnextBase {
         uint256 _slippage,
         bytes calldata _callData
     ) external payable returns (bytes32) {
-        ERC20(_asset).transferFrom(msg.sender, address(this), _amount);
+        bytes4 selector = bytes4(_callData);
+        if (selector == WITHDRAW_SELECTOR) {
+            //We dont have to transfer on withdraw
+            return bytes32(0);
+        }
+
+        if (selector == REDEEM_SELECTOR) {
+            //We dont have to transfer on withdraw
+            uint leftAtOrigin = abi.decode(_callData[4:], (uint));
+            callReddem(_asset, _amount, leftAtOrigin);
+            return bytes32(0);
+        }
+        if (selector == DEPOST_SELECTOR) {
+            ERC20(_asset).transferFrom(msg.sender, address(this), _amount);
+            return bytes32(0);
+        }
+        revert("unknown selector");
     }
 
     //Can be called with in the test suite to mock a reddem bridge call
@@ -47,8 +63,11 @@ contract MockConnextRouter is ConnextBase {
         uint _amount,
         uint remainingBalance
     ) public {
+        console.log("call reddem");
+        console.log(ERC20(_asset).balanceOf(address(destinationBridge)));
+        console.log(_amount);
         ERC20(_asset).transferFrom(
-            address(this),
+            address(address(destinationBridge)),
             address(originBridge),
             _amount
         );
@@ -79,9 +98,6 @@ contract MockConnextRouter is ConnextBase {
     function callDeposit(address _asset, uint _amount) public {
         (, uint fee) = getConnextRouterFee(_asset, _amount);
         uint toBridge = _amount - fee;
-
-        console.log(ERC20(_asset).balanceOf(address(this)));
-        console.log(toBridge);
 
         ERC20(_asset).transfer(address(destinationBridge), toBridge);
 
