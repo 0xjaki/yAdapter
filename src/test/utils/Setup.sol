@@ -83,10 +83,11 @@ contract Setup is ExtendedTest, IEvents {
         //Dummy start the destiantionSTrat deploys their capital too
         mockYieldSource = IStrategyInterface(setupMockStrategy());
 
+        connext = new MockConnextRouter();
+
         destinationAdapter = new DestinationAdapter(
             IStrategy(address(mockYieldSource))
         );
-        originStrategy = IStrategyInterface(setupOriginStrategy());
 
         originBridge = new ConnextOriginBridge(
             destinationDomain,
@@ -100,6 +101,7 @@ contract Setup is ExtendedTest, IEvents {
             address(connext),
             keeper
         );
+        originStrategy = IStrategyInterface(setupOriginStrategy());
 
         vm.prank(keeper);
         originBridge.setDestinationBridge(address(destinationBridge));
@@ -107,7 +109,6 @@ contract Setup is ExtendedTest, IEvents {
         vm.prank(keeper);
         destinationBridge.setOriginBridge(address(originBridge));
 
-        connext = new MockConnextRouter();
         connext.setup(
             IXReceiver(address(originBridge)),
             IXReceiver(address(destinationBridge)),
@@ -154,7 +155,7 @@ contract Setup is ExtendedTest, IEvents {
         _strategy.acceptManagement();
 
         vm.prank(management);
-        _strategy.setDestinationAdapter(address(destinationAdapter));
+        _strategy.setDestinationBridge(address(destinationBridge));
 
         return address(_strategy);
     }

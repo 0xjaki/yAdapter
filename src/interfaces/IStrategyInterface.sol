@@ -7,9 +7,11 @@ interface IStrategyInterface is IStrategy {
     //TODO: Add your specific implementation interface in here.
     function bridgedAssets() external returns (uint);
 
-    function staging() external returns (uint);
+    function setDestinationBridge(address _bridge) external;
 
-    function preHarvest(uint _amount) external;
+    function calcDepositAmount() external view returns (uint);
 
-    function setDestinationAdapter(address _adapter) external;
+    function calcWithdrawlAmount() external view returns (uint);
+
+    function depositFunds(uint256 _amount) external payable;
 }

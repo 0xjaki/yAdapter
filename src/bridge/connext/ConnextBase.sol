@@ -16,7 +16,7 @@ abstract contract ConnextBase {
     function getConnextRouterFee(
         address token,
         uint256 _amount
-    ) internal pure virtual returns (address, uint) {
+    ) public pure virtual returns (address, uint) {
         //See https://docs.connext.network/developers/guides/estimating-fees
         //Connext charges 0.05% of the transfered amount
         uint relayerFee = (_amount * 5) / 10000;

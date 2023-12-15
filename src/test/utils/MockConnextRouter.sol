@@ -3,8 +3,9 @@ pragma solidity ^0.8.0;
 
 import {IXReceiver} from "src/interfaces/connext/IXReceiver.sol";
 import {ConnextBase} from "src/bridge/connext/ConnextBase.sol";
-
 import {ERC20} from "@tokenized-strategy/BaseStrategy.sol";
+
+import "forge-std/console.sol";
 
 contract MockConnextRouter is ConnextBase {
     IXReceiver public originBridge;
@@ -26,6 +27,18 @@ contract MockConnextRouter is ConnextBase {
         destinationBridge = _destinationBridge;
         originStrategy = _originStrategy;
         destinationAdapter = _destinationAdapter;
+    }
+
+    function xcall(
+        uint32 _destination,
+        address _to,
+        address _asset,
+        address _delegate,
+        uint256 _amount,
+        uint256 _slippage,
+        bytes calldata _callData
+    ) external payable returns (bytes32) {
+        ERC20(_asset).transferFrom(msg.sender, address(this), _amount);
     }
 
     //Can be called with in the test suite to mock a reddem bridge call
@@ -67,11 +80,10 @@ contract MockConnextRouter is ConnextBase {
         (, uint fee) = getConnextRouterFee(_asset, _amount);
         uint toBridge = _amount - fee;
 
-        ERC20(_asset).transferFrom(
-            address(this),
-            address(destinationBridge),
-            toBridge
-        );
+        console.log(ERC20(_asset).balanceOf(address(this)));
+        console.log(toBridge);
+
+        ERC20(_asset).transfer(address(destinationBridge), toBridge);
 
         destinationBridge.xReceive(
             bytes32(0),
@@ -79,7 +91,7 @@ contract MockConnextRouter is ConnextBase {
             _asset,
             address(originBridge),
             TEST_ORIGIN_DOMAIN,
-            abi.encodeWithSelector(WITHDRAW_SELECTOR)
+            abi.encodeWithSelector(DEPOST_SELECTOR)
         );
     }
 }

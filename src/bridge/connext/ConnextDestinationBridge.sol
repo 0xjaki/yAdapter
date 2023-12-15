@@ -8,6 +8,8 @@ import {IDestinationAdapter} from "../../DestinationAdapter.sol";
 import {BaseStrategy, ERC20} from "@tokenized-strategy/BaseStrategy.sol";
 import {ConnextBase} from "./ConnextBase.sol";
 
+import "forge-std/console.sol";
+
 contract ConnextDestinationBridge is ConnextBase, IXReceiver {
     constructor(
         uint32 _originDomain,
