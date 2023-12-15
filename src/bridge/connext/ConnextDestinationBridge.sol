@@ -11,24 +11,23 @@ import {ConnextBase} from "./ConnextBase.sol";
 contract ConnextDestinationBridge is ConnextBase, IXReceiver {
     constructor(
         uint32 _originDomain,
-        address _originBridge,
         address _destinationAdapter,
         address _connext,
-        address _bridgeManager
+        address _admin
     ) {
         //The domain of the destination chain
         originDomain = _originDomain;
-        originBridge = _originBridge;
+
         destinationAdapter = IDestinationAdapter(_destinationAdapter);
         connext = IConnext(_connext);
-        bridgeManager = _bridgeManager;
+        admin = _admin;
     }
 
     IConnext public connext;
     uint32 public originDomain;
     IDestinationAdapter public destinationAdapter;
     address public originBridge;
-    address public bridgeManager;
+    address public admin;
 
     modifier onlySource(address _originSender, uint32 _origin) {
         require(
@@ -40,18 +39,27 @@ contract ConnextDestinationBridge is ConnextBase, IXReceiver {
         _;
     }
 
+    modifier onlyAdmin() {
+        require(msg.sender == admin, "only admin");
+        _;
+    }
+
+    function setOriginBridge(address _originBridge) external onlyAdmin {
+        originBridge = _originBridge;
+    }
+
     function xReceive(
         bytes32 _transferId,
         uint256 _amount,
         address _asset,
         address _originSender,
         uint32 _origin,
-        bytes memory _callData
+        bytes calldata _callData
     ) external onlySource(_originSender, _origin) returns (bytes memory) {
         bytes4 selector = bytes4(_callData);
 
         require(
-            selector == DEPOST_SELECTOR || selector == DEPOST_SELECTOR,
+            selector == DEPOST_SELECTOR || selector == WITHDRAW_SELECTOR,
             "invalid operation"
         );
 
@@ -59,7 +67,11 @@ contract ConnextDestinationBridge is ConnextBase, IXReceiver {
             depositFundsToAdapter(_asset, _amount);
         }
         if (selector == WITHDRAW_SELECTOR) {
-            withdrawFundsFromAdapter(_asset, _amount);
+            (address asset, uint amount) = abi.decode(
+                _callData[4:],
+                (address, uint)
+            );
+            withdrawFundsFromAdapter(asset, amount);
         }
     }
 
@@ -96,7 +108,7 @@ contract ConnextDestinationBridge is ConnextBase, IXReceiver {
             originDomain, // _destination: Domain ID of the destination chain
             originBridge, // _to: address receiving the funds on the destination
             _asset, // _asset: address of the token contract
-            bridgeManager, // _delegate: address that can revert or forceLocal on destination
+            admin, // _delegate: address that can revert or forceLocal on destination
             received, // _amount: amount of tokens to transfer
             slippage, // _slippage: the maximum amount of slippage the user will accept in BPS (e.g. 30 = 0.3%)
             abi.encodeWithSelector(REDEEM_SELECTOR, remainingBalance) // _callData: encoded function call to deposit funds

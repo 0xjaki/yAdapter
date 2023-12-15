@@ -7,32 +7,26 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import "forge-std/console.sol";
 
 import {IOriginBridge} from "./interfaces/bridge/IOriginBridge.sol";
-import {IWETH9} from "./interfaces/IWETH9.sol";
 import {IBridgeReceiver} from "./interfaces/bridge/IBridgeReceiver.sol";
 
-import {UniswapV3Swapper} from "lib/tokenized-strategy-periphery/src/swappers/UniswapV3Swapper.sol";
-
-contract OriginStrategy is BaseStrategy, UniswapV3Swapper, IBridgeReceiver {
+contract OriginStrategy is BaseStrategy, IBridgeReceiver {
     using SafeERC20 for ERC20;
 
     constructor(
         address _asset,
         string memory _name,
-        IOriginBridge _iBridge,
-        address _uniV3Router,
-        address _weth
+        IOriginBridge _iBridge
     ) BaseStrategy(_asset, _name) {
         bridge = _iBridge;
-        router = _uniV3Router;
-        base = _weth;
-
-        _setUniFees(_asset, _weth, 3000);
     }
 
     address public destinationAdapter;
     IOriginBridge public bridge;
 
     uint public bridgedAssets;
+
+    //TODO add getter and setter;
+    uint public ratio = 800;
 
     modifier onlyBridge() {
         require(msg.sender == address(bridge), "only bridge");
@@ -44,22 +38,6 @@ contract OriginStrategy is BaseStrategy, UniswapV3Swapper, IBridgeReceiver {
         destinationAdapter = _adapter;
     }
 
-    //TODO maybe rename to something like balance eth.
-    //TODO should also support deposit in case there is to much idle
-    function preHarvest(uint _amount) external onlyKeepers {
-        (address feeToken, uint256 feeAmount) = bridge.getWithdrawlFee(
-            address(asset),
-            _amount
-        );
-
-        if (feeToken == address(0)) {
-            swapForEthBridgeFee(feeAmount);
-            bridge.withdraw{value: feeAmount}(address(asset), _amount);
-        } else {
-            //TODO add ERC20 fee token
-        }
-    }
-
     //When the bridge has received the funds it calls the callback to transfer it back to the strat
     function onFundsReceivedCallback(
         address,
@@ -69,8 +47,25 @@ contract OriginStrategy is BaseStrategy, UniswapV3Swapper, IBridgeReceiver {
         bridgedAssets = abi.decode(data, (uint256));
     }
 
+    function availableWithdrawLimit(
+        address
+    ) public view override returns (uint256) {
+        //Only idle funds can be withdrawn
+        return TokenizedStrategy.totalIdle();
+    }
+
     function _deployFunds(uint256 _amount) internal override {
-        _bridgeFunds(_amount);
+        //Funds become idle at first
+        //Keeper has to bridge them to deploy them
+    }
+
+    //Keeper can tend to request additional funds
+    function requestWithdrawl() internal onlyKeepers {
+        uint amountToWithdraw = ((bridgedAssets -
+            (ratio * TokenizedStrategy.totalIdle()) /
+            1000) * 1000) / (1000 + ratio);
+
+        bridge.withdraw{value: msg.value}(address(asset), amountToWithdraw);
     }
 
     /**
@@ -80,55 +75,28 @@ contract OriginStrategy is BaseStrategy, UniswapV3Swapper, IBridgeReceiver {
     function _bridgeFunds(uint256 _amount) internal {
         require(destinationAdapter != address(0), "adapter is zero");
 
-        (address feeToken, uint256 feeAmount) = bridge.getDepositFee(
-            address(asset),
-            _amount
-        );
-
         //We want to keep 20 idle
         //TODO maybe move ratio to state var
-        uint toBeBridged = (_amount * 800) / 1000;
+        uint toBeBridged = (_amount * ratio) / 1000;
 
-        //Fee token is native ETH
-        if (feeToken == address(0)) {
-            //swap part of the asset to cover fees
-            swapForEthBridgeFee(feeAmount);
-            //grant bridge the allowance to take asset from strat
-            asset.increaseAllowance(address(bridge), _amount);
-            //send fund to bridge
-            bridge.deposit{value: feeAmount}(
-                destinationAdapter,
-                address(asset),
-                toBeBridged
-            );
-        } else {
-            //TODO add ERC20 fee token
-        }
+        //swap part of the asset to cover fees
+        //grant bridge the allowance to take asset from strat
+        asset.increaseAllowance(address(bridge), _amount);
+        //send fund to bridge
+        //Keeper has to provide suffiecnt ETH via msg.sender to cover the relayer fee
+        //The current rate can be requested offchain by using the SDK of the bridge
+        bridge.deposit{value: msg.value}(
+            destinationAdapter,
+            address(asset),
+            toBeBridged
+        );
+
         //account bridge asssets
         bridgedAssets += toBeBridged;
     }
 
-    //Swap to ETH to get bridge fees
-    function swapForEthBridgeFee(uint feeAmount) internal {
-        IWETH9 weth = IWETH9(base);
-
-        //Todo calc maxAmountIn properly
-        uint maxAmountIn = asset.balanceOf(address(this));
-
-        //Swap assets to WETH
-        _swapTo(address(asset), address(weth), feeAmount, maxAmountIn);
-        require(weth.balanceOf(address(this)) >= feeAmount, "cant pay bridge");
-        weth.withdraw(feeAmount);
-    }
-
-    //TODO just do nothing
-    /**
-     * @dev Will attempt to free the '_amount' of 'asset'.
-     * @param _amount, The amount of 'asset' to be freed.
-     */
-    function _freeFunds(uint256 _amount) internal override onlyKeepers {
-        //Withdraws funds from the bridge. This is more kind of request that not retrun funds immitidatly
-        bridge.withdraw(address(this), _amount);
+    function _freeFunds(uint256 _amount) internal override {
+        //Do nothing
     }
 
     /**
@@ -140,14 +108,10 @@ contract OriginStrategy is BaseStrategy, UniswapV3Swapper, IBridgeReceiver {
         override
         returns (uint256 _totalAssets)
     {
-        //TODO subtract min costs of briding from totalAssets 
+        //TODO subtract min costs of briding from totalAssets
         _totalAssets = asset.balanceOf(address(this)) + bridgedAssets;
     }
 
-    receive() external payable {
-        //Receive is called when withdrawing ETH from WETH contract to retrive bridge fees
-        require(msg.sender == address(base), "only WETH");
-    }
     /*//////////////////////////////////////////////////////////////
                     OPTIONAL TO OVERRIDE BY STRATEGIST
     //////////////////////////////////////////////////////////////*/
@@ -237,15 +201,8 @@ contract OriginStrategy is BaseStrategy, UniswapV3Swapper, IBridgeReceiver {
      * @param . The address that is withdrawing from the strategy.
      * @return . The available amount that can be withdrawn in terms of `asset`
      *
-    function availableWithdrawLimit(
-        address _owner
-    ) public view override returns (uint256) {
-        TODO: If desired Implement withdraw limit logic and any needed state variables.
-        
-        EX:    
-            return TokenizedStrategy.totalIdle();
-    }
-    */
+   
+    
 
     /**
      * @dev Optional function for a strategist to override that will

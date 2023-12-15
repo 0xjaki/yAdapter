@@ -9,110 +9,31 @@ contract OriginStrategy is Setup {
         super.setUp();
     }
 
-    function test_deposit() public {
+    function test_ape() public {
         require(
             originStrategy.bridgedAssets() == 0,
             "initial bridged assets are 0"
         );
+        //To be deposited into strat
         uint256 _amount = 1000000;
-        uint256 bridgeFees = 123;
+
         // Deposit into strategy
         mintAndDepositIntoStrategy(originStrategy, user, _amount);
         // TODO: Deposit everything to vault
 
         //TODO check how to test with totalAssets lacking bridge fees
-        checkStrategyTotals(
-            originStrategy,
-            _amount,
-            800000 + bridgeFees,
-            200000 - bridgeFees
-        );
+        checkStrategyTotals(originStrategy, _amount, 0, _amount);
 
+        require(originStrategy.bridgedAssets() == 0, "assets should be ide");
+
+        //User can withdraw everything becaus it hasent been bridged yet
         require(
-            originStrategy.bridgedAssets() == 800000,
-            "assets havent been bridged"
+            originStrategy.maxWithdraw(user) == _amount,
+            "wrong withdrawl limit"
         );
     }
 
-    function test_withdraw_origin() public {
-        require(
-            originStrategy.bridgedAssets() == 0,
-            "initial bridged assets are 0"
-        );
-        uint256 _amount = 1000000;
-        uint256 depositFees = 123;
-        uint256 withdrawlFees = 456;
-        uint256 reddemFee = 456;
-
-        uint balanceDestiny = 800000;
-        uint balanceSource = 200000;
-        // Deposit into strategy
-        mintAndDepositIntoStrategy(originStrategy, user, _amount);
-        // TODO: Deposit everything to vault
-        checkStrategyTotals(
-            originStrategy,
-            _amount,
-            balanceDestiny + depositFees,
-            balanceSource - depositFees
-        );
-
-        require(originStrategy.staging() == 0, "staging is empty");
-
-        uint expectedProfit = 100000;
-        uint withdrawAmount = 20000;
-        //L1 Strategy make profits and holds 900000 now
-        //Keeper calcs that in order to maintain ratio 200000 has to be removed
-
-        //Grant bridge allowance
-        vm.prank(eoa);
-        asset.transfer(address(originBridge), withdrawAmount);
-
-        uint beforeHarvest = asset.balanceOf(address(originStrategy));
-        vm.prank(keeper);
-        originStrategy.preHarvest(withdrawAmount);
-
-        uint leftInDestiny = balanceDestiny + expectedProfit - withdrawAmount;
-
-        originBridge.triggerFundsReceivedCallback(
-            address(asset),
-            withdrawAmount,
-            leftInDestiny
-        );
-
-        require(originStrategy.staging() == 0, "staking should be 0");
-        uint afterHarvest = asset.balanceOf(address(originStrategy));
-
-        //Dai that has been withdrawn has reached the strat
-        assertEq(
-            beforeHarvest + withdrawAmount - withdrawlFees,
-            afterHarvest,
-            "Dai has not been withdrawn"
-        );
-
-        vm.prank(keeper);
-        (uint256 profit, uint256 loss) = originStrategy.report();
-
-        uint totalAssetsExpected = leftInDestiny +
-            balanceSource +
-            withdrawAmount -
-            depositFees -
-            withdrawlFees;
-
-        //Profit has been reported
-        assertEq(
-            expectedProfit - depositFees - withdrawlFees,
-            profit,
-            "false profit"
-        );
-        assertEq(
-            originStrategy.totalAssets(),
-            totalAssetsExpected,
-            "false totalAsset"
-        );
-        assertEq(loss, 0, "loss");
-    }
-
-    function test_ape() public {
+    function test_a() public {
         require(
             originStrategy.bridgedAssets() == 0,
             "initial bridged assets are 0"
@@ -142,23 +63,24 @@ contract OriginStrategy is Setup {
 
         //Funds have been dispatched to eoa that can now deal the funds to L2
         assertEq(
-            ERC20(asset).balanceOf(eoa),
+            ERC20(asset).balanceOf(connextOperator),
             expectedBalanceDestiny,
             "balance mismatch"
         );
 
         //This is an internal tx of the brdige to move the funds
-        vm.prank(eoa);
+        vm.prank(connextOperator);
         ERC20(asset).transfer(
             address(destinationBridge),
             expectedBalanceDestiny
         );
         //when funds have been moved successfully the bridge triggers funds received
-        destinationBridge.triggerFundsReceivedCallback(
+        //Todo connext bridge
+        /* destinationBridge.triggerFundsReceivedCallback(
             address(asset),
             expectedBalanceDestiny,
             0
-        );
+        ); */
 
         assertEq(
             ERC20(address(mockYieldSource)).balanceOf(
@@ -169,7 +91,6 @@ contract OriginStrategy is Setup {
         );
 
         //Strat gains 10%
-
         uint preReportTotalAssets = mockYieldSource.totalAssets();
         uint preReportUserBalance = mockYieldSource.convertToAssets(
             mockYieldSource.balanceOf(address(destinationAdapter))
@@ -221,15 +142,17 @@ contract OriginStrategy is Setup {
         originStrategy.preHarvest(withdrawAmount);
 
         //Grant bridge allowance
-        vm.prank(eoa);
+        vm.prank(connextOperator);
         //DestinationBrdige withdraws funds from adapter and send them to eoa
-        uint bridged = destinationBridge.redeem(
+        //Todo connext bridge
+        /*     uint bridged = destinationBridge.redeem(
             address(asset),
-            eoa,
+            connextOperator,
             withdrawAmount
-        );
+        ); */
+        uint bridged;
 
-        vm.prank(eoa);
+        vm.prank(connextOperator);
         //origin bridge receives funds that has been birdged all fees already subtracted
         asset.transfer(address(originBridge), bridged);
 
@@ -237,12 +160,13 @@ contract OriginStrategy is Setup {
             mockYieldSource.balanceOf(address(destinationAdapter))
         );
         //Origin receives requested funds
-        vm.prank(eoa);
-        originBridge.triggerFundsReceivedCallback(
+        vm.prank(connextOperator);
+        //Todo connext bridge
+        /*      originBridge.triggerFundsReceivedCallback(
             address(asset),
             bridged,
             leftInDestiny
-        );
+        ); */
 
         //require(originStrategy.staging() == 0, "staking should be 0");
         uint afterHarvest = asset.balanceOf(address(originStrategy));

@@ -13,32 +13,41 @@ contract ConnextOriginBridge is ConnextBase, IXReceiver, IOriginBridge {
     constructor(
         uint32 _destinationDomain,
         address _originStrategy,
-        address _destinationAdapter,
         address _connext,
-        address _bridgeManager
+        address _admin
     ) {
         //The domain of the destination chain
         destinationDomain = _destinationDomain;
         originStrategy = _originStrategy;
-        destinationAdapter = _destinationAdapter;
         connext = IConnext(_connext);
-        bridgeManager = _bridgeManager;
+        admin = _admin;
     }
 
     IConnext public connext;
     uint32 public destinationDomain;
-    address public destinationAdapter;
-    address public bridgeManager;
+    address public destinationBridge;
+    address public admin;
     address public originStrategy;
 
     modifier onlySource(address _originSender, uint32 _origin) {
         require(
             _origin == destinationDomain &&
-                _originSender == destinationAdapter &&
+                _originSender == destinationBridge &&
                 msg.sender == address(connext),
             "Expected original caller to be source contract on origin domain and this to be called by Connext"
         );
         _;
+    }
+
+    modifier onlyAdmin() {
+        require(msg.sender == admin, "only admin");
+        _;
+    }
+
+    function setDestinationBridge(
+        address _destinationBridge
+    ) external onlyAdmin {
+        destinationBridge = _destinationBridge;
     }
 
     function getDepositFee(
@@ -63,7 +72,7 @@ contract ConnextOriginBridge is ConnextBase, IXReceiver, IOriginBridge {
         ERC20 _token = ERC20(token);
         uint slippage = 30;
 
-        require(receiver == destinationAdapter, "destination mismatch");
+        require(receiver == destinationBridge, "destination mismatch");
 
         require(
             _token.allowance(msg.sender, address(this)) >= _amount,
@@ -78,9 +87,9 @@ contract ConnextOriginBridge is ConnextBase, IXReceiver, IOriginBridge {
 
         connext.xcall{value: msg.value}(
             destinationDomain, // _destination: Domain ID of the destination chain
-            destinationAdapter, // _to: address receiving the funds on the destination
+            destinationBridge, // _to: address receiving the funds on the destination
             token, // _asset: address of the token contract
-            bridgeManager, // _delegate: address that can revert or forceLocal on destination
+            admin, // _delegate: address that can revert or forceLocal on destination
             _amount, // _amount: amount of tokens to transfer
             slippage, // _slippage: the maximum amount of slippage the user will accept in BPS (e.g. 30 = 0.3%)
             abi.encodeWithSelector(DEPOST_SELECTOR) // _callData: encoded function call to deposit funds
@@ -90,9 +99,9 @@ contract ConnextOriginBridge is ConnextBase, IXReceiver, IOriginBridge {
     function withdraw(address token, uint256 _amount) external payable {
         connext.xcall{value: msg.value}(
             destinationDomain, // _destination: Domain ID of the destination chain
-            destinationAdapter, // _to: address receiving the funds on the destination
+            destinationBridge, // _to: address receiving the funds on the destination
             address(0), // _asset: address of the token contract
-            bridgeManager, // _delegate: address that can revert or forceLocal on destination
+            admin, // _delegate: address that can revert or forceLocal on destination
             0, // _amount: amount of tokens to transfer
             0, // _slippage: the maximum amount of slippage the user will accept in BPS (e.g. 30 = 0.3%)
             abi.encodeWithSelector(WITHDRAW_SELECTOR, token, _amount) // _callData: encoded function call to withdraw funds

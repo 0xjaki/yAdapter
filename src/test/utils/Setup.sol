@@ -11,10 +11,14 @@ import {IStrategy} from "@tokenized-strategy/interfaces/IStrategy.sol";
 // Inherit the events so they can be checked if desired.
 import {IEvents} from "@tokenized-strategy/interfaces/IEvents.sol";
 
-import {MockOriginBridge} from "./MockOriginBridge.sol";
 import {DestinationAdapter} from "../../DestinationAdapter.sol";
-import {MockDestinationBridge} from "./MockDestinationBridge.sol";
+
+import {ConnextOriginBridge} from "src/bridge/connext/ConnextOriginBridge.sol";
+import {ConnextDestinationBridge} from "src/bridge/connext/ConnextDestinationBridge.sol";
 import {MockStrategy} from "./MockStrategy.sol";
+import {IXReceiver} from "src/interfaces/connext/IXReceiver.sol";
+
+import {MockConnextRouter} from "src/test/utils/MockConnextRouter.sol";
 
 interface IFactory {
     function governance() external view returns (address);
@@ -38,13 +42,15 @@ contract Setup is ExtendedTest, IEvents {
     address public management = address(1);
     address public performanceFeeRecipient = address(3);
 
-    address public eoa = address(1234);
+    address public connextOperator = address(1234);
+
+    MockConnextRouter connext;
 
     // Address of the real deployed Factory
     address public factory;
 
-    MockOriginBridge originBridge;
-    MockDestinationBridge destinationBridge;
+    ConnextOriginBridge originBridge;
+    ConnextDestinationBridge destinationBridge;
 
     IStrategyInterface mockYieldSource;
 
@@ -58,6 +64,12 @@ contract Setup is ExtendedTest, IEvents {
 
     // Default profit max unlock time is set for 10 days
     uint256 public profitMaxUnlockTime = 10 days;
+
+    //Origin domain i.E Polygon Mainnet
+    uint32 originDomain = 1;
+
+    //Destination domain i.E Optimism Mainnet
+    uint32 destinationDomain = 2;
 
     function setUp() public virtual {
         _setTokenAddrs();
@@ -74,24 +86,41 @@ contract Setup is ExtendedTest, IEvents {
         destinationAdapter = new DestinationAdapter(
             IStrategy(address(mockYieldSource))
         );
-        // Deploy strategy and set variables
-        originBridge = new MockOriginBridge();
-
-        destinationBridge = new MockDestinationBridge();
-        destinationBridge.setup(
-            address(destinationAdapter),
-            address(originBridge)
-        );
-
         originStrategy = IStrategyInterface(setupOriginStrategy());
 
-        originBridge.setup(address(originStrategy), address(eoa));
+        originBridge = new ConnextOriginBridge(
+            destinationDomain,
+            address(originStrategy),
+            address(connext),
+            keeper
+        );
+        destinationBridge = new ConnextDestinationBridge(
+            originDomain,
+            address(destinationAdapter),
+            address(connext),
+            keeper
+        );
+
+        vm.prank(keeper);
+        originBridge.setDestinationBridge(address(destinationBridge));
+
+        vm.prank(keeper);
+        destinationBridge.setOriginBridge(address(originBridge));
+
+        connext = new MockConnextRouter();
+        connext.setup(
+            IXReceiver(address(originBridge)),
+            IXReceiver(address(destinationBridge)),
+            address(originStrategy),
+            address(destinationAdapter)
+        );
+
         factory = originStrategy.FACTORY();
 
         // label all the used addresses for traces
         vm.label(keeper, "keeper");
         vm.label(factory, "factory");
-        vm.label(eoa, "eoa");
+        vm.label(connextOperator, "connext operator");
         vm.label(address(asset), "asset");
         vm.label(management, "management");
         vm.label(address(originStrategy), "originStrategy");
@@ -99,6 +128,7 @@ contract Setup is ExtendedTest, IEvents {
         vm.label(performanceFeeRecipient, "performanceFeeRecipient");
         vm.label(address(originBridge), "origin bridge");
         vm.label(address(destinationBridge), "destination bridge");
+        vm.label(address(connext), "connext router");
     }
 
     function setupOriginStrategy() public returns (address) {
@@ -109,11 +139,7 @@ contract Setup is ExtendedTest, IEvents {
                 new OriginStrategy(
                     address(asset),
                     "Origin Strategy",
-                    originBridge,
-                    //UniswapV3Router
-                    0xE592427A0AEce92De3Edee1F18E0157C05861564,
-                    //Polygon WETH
-                    0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270
+                    originBridge
                 )
             )
         );
