@@ -44,7 +44,6 @@ contract OriginStrategy is Setup {
         uint depositAmount = originStrategy.calcDepositAmount();
         require(depositAmount == toBeBridged, "wrong deposit amount");
         vm.prank(keeper);
-
         originStrategy.depositFunds(toBeBridged);
 
         assertEq(
@@ -79,13 +78,13 @@ contract OriginStrategy is Setup {
 
         checkStrategyTotals(
             originStrategy,
-            _amount - toBeBridged,
+            _amount,
             toBeBridged,
             _amount - toBeBridged
         );
     }
 
-    function test_a() public {
+    function test_x() public {
         //To be deposited into strat
         uint256 _amount = 1000000;
         uint deposited = 800000;

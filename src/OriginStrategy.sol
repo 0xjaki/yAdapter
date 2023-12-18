@@ -135,7 +135,6 @@ contract OriginStrategy is BaseStrategy, IBridgeReceiver {
         override
         returns (uint256 _totalAssets)
     {
-        //TODO subtract min costs of briding from totalAssets
         _totalAssets = asset.balanceOf(address(this)) + bridgedAssets;
     }
 
