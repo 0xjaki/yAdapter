@@ -5,32 +5,39 @@ import {IBridgeSender} from "./interfaces/bridge/IBridgeSender.sol";
 import {IDestinationBridge} from "./interfaces/bridge/IDestinationBridge.sol";
 import {IStrategy} from "@tokenized-strategy/interfaces/IStrategy.sol";
 import {BaseStrategy, ERC20} from "@tokenized-strategy/BaseStrategy.sol";
-
-import "forge-std/console.sol";
+import {ERC4626} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/ERC4626.sol";
 
 interface IDestinationAdapter is IBridgeReceiver, IBridgeSender {}
 
 contract DestinationAdapter is IDestinationAdapter {
-    IStrategy vault;
+    //The vault the adapter deposits its funds to
+    ERC4626 public vault;
 
+    //Destination adapter can be used by more than one adapter. That might be usefull to have different Origin strategies from
+    //several chains depositing to the same destination
     mapping(address => uint256) depositors;
 
-    constructor(
-        //TODO use 4668 interface
-        IStrategy _vault
-    ) {
+    constructor(ERC4626 _vault) {
         vault = _vault;
     }
 
+    /**
+     * @dev Callback function to handle the receipt of funds from the bridge and update the bridged assets.
+     * @param _asset The address of the token being transferred.
+     * @param _amount The amount of tokens being transferred.
+     */
     function onFundsReceivedCallback(
-        address token,
-        uint amount,
+        address _asset,
+        uint _amount,
         bytes calldata
     ) external override {
-        ERC20(token).increaseAllowance(address(vault), amount);
-        uint deposited = vault.deposit(amount, address(this));
-        uint p = vault.pricePerShare();
-        depositors[msg.sender] += p * deposited;
+        //Grant vault allowance
+        ERC20(_asset).increaseAllowance(address(vault), _amount);
+        //deposit asset to vault
+        uint deposited = vault.deposit(_amount, address(this));
+        //Add to deposited balance
+        uint depositedAsset = vault.convertToAssets(deposited);
+        depositors[msg.sender] += depositedAsset;
     }
 
     function onFundsRequested(
@@ -38,26 +45,16 @@ contract DestinationAdapter is IDestinationAdapter {
         uint amount,
         bytes calldata
     ) external returns (uint) {
-        //Figure out how to deal with maxLoss
-        uint maxLoss = 0;
-        //convert to shares
+        //Reverts if more funds are requested than previously deposited
+        uint withdrawlAmount = depositors[msg.sender] - amount;
+        //Withdraw from vault
+        vault.withdraw(withdrawlAmount, address(this), address(this));
 
-        uint balanceBefore = ERC20(vault.asset()).balanceOf(address(this));
-        vault.withdraw(
-            vault.convertToShares(amount),
-            address(this),
-            address(this),
-            maxLoss
-        );
         uint balanceAfter = ERC20(vault.asset()).balanceOf(address(this));
+        //set remaining balance
+        depositors[msg.sender] -= withdrawlAmount;
 
-        console.log("---");
-        console.log("balance adapter");
-        console.log(balanceBefore);
-        console.log(balanceAfter);
-        console.log("---");
-
-        depositors[msg.sender] -= balanceAfter;
+        //send assets to bridge
         ERC20(vault.asset()).transfer(msg.sender, balanceAfter);
         //Todo deal with withdrawl limit
         return balanceAfter;

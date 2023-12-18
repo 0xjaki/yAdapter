@@ -20,6 +20,9 @@ import {IXReceiver} from "src/interfaces/connext/IXReceiver.sol";
 
 import {MockConnextRouter} from "src/test/utils/MockConnextRouter.sol";
 
+import {ERC4626} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/ERC4626.sol";
+
+
 interface IFactory {
     function governance() external view returns (address);
 
@@ -86,7 +89,7 @@ contract Setup is ExtendedTest, IEvents {
         connext = new MockConnextRouter();
 
         destinationAdapter = new DestinationAdapter(
-            IStrategy(address(mockYieldSource))
+            ERC4626(address(mockYieldSource))
         );
 
         originBridge = new ConnextOriginBridge(

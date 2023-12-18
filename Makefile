@@ -12,7 +12,7 @@ FORK_URL := ${ETH_RPC_URL}
 
 # local tests without fork
 test  :; forge test -vv --fork-url ${FORK_URL} --etherscan-api-key ${ETHERSCAN_API_KEY}
-test-only  :; forge test --match-test "ape" -vvvv  --via-ir --fork-url ${FORK_URL} --etherscan-api-key ${ETHERSCAN_API_KEY}
+test-only  :; forge test --match-test "ape" -vv --via-ir --fork-url ${FORK_URL} --etherscan-api-key ${ETHERSCAN_API_KEY}
 trace  :; forge test -vvv --fork-url ${FORK_URL} --etherscan-api-key ${ETHERSCAN_API_KEY}
 gas  :; forge test --fork-url ${FORK_URL} --etherscan-api-key ${ETHERSCAN_API_KEY} --gas-report
 test-contract  :; forge test -vv --match-contract $(contract) --fork-url ${FORK_URL} --etherscan-api-key ${ETHERSCAN_API_KEY}

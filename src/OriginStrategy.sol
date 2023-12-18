@@ -6,8 +6,6 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import "forge-std/console.sol";
-
 import {IOriginBridge} from "./interfaces/bridge/IOriginBridge.sol";
 import {IBridgeReceiver} from "./interfaces/bridge/IBridgeReceiver.sol";
 
@@ -24,11 +22,14 @@ contract OriginStrategy is BaseStrategy, IBridgeReceiver {
         bridge = _iBridge;
     }
 
+    //The destination bridge. Only used for reddem funds
     address public destinationBridge;
+    //The origin bridge funds are send to
     IOriginBridge public bridge;
+    //the amount of assets currently bridged
     uint public bridgedAssets;
 
-    //TODO add getter and setter;
+    //the ration idle and bridged assets should maintain. Keeper should deposit/withdraw frequenly to maintain that ratio
     uint public ratio = 800;
 
     /**
@@ -49,43 +50,68 @@ contract OriginStrategy is BaseStrategy, IBridgeReceiver {
         destinationBridge = _bridge;
     }
 
+    /**
+     * @dev Sets the new ratio for maintaining idle and bridged assets.
+     * Can only be called by an account with the `onlyManagement` modifier.
+     * @param _newRatio The new ratio value.
+     */
+    function setRatio(uint _newRatio) external onlyManagement {
+        ratio = _newRatio;
+    }
+
     /*//////////////////////////////////////////////////////////////
                 Bridge related logic
     //////////////////////////////////////////////////////////////*/
 
+    /**
+     * @dev Calculates the withdrawal amount based on the current ratio and asset balances.
+     * @return The calculated withdrawal amount.
+     */
     function calcWithdrawlAmount() public view returns (uint) {
-        // Explain what this calculation is doing
+        //First get idle assets
         uint idleAssets = TokenizedStrategy.totalIdle();
-
+        //Adjust them so we can divide them later
         uint adjustedIdleAssets = ratio.mul(idleAssets).div(1000);
-
+        //protect underflow
         require(bridgedAssets >= adjustedIdleAssets, "Underflow protection");
+        //remove idle from bridged
         uint netBridgedAssets = bridgedAssets.sub(adjustedIdleAssets);
-
+        //get demonitor we use to divide bridge assets
         uint denominator = ratio.add(1000);
         require(denominator != 0, "Division by zero protection");
-
-        uint withdrawalAmount = netBridgedAssets.mul(1000).div(denominator);
-
-        return withdrawalAmount;
+        //Get the withdrawl amount by divide bridged asset / denominator
+        return netBridgedAssets.mul(1000).div(denominator);
     }
 
+    /**
+     * @dev Calculates the deposit amount based on the current ratio and asset balances.
+     * @return The calculated deposit amount.
+     */
     function calcDepositAmount() public view returns (uint) {
+        //First get idle assets
         uint idleAssets = TokenizedStrategy.totalIdle();
-        uint depositAmount = idleAssets.mul(ratio).div(1000);
-        return depositAmount;
+        //simply deposit 80% of idle assets
+        return idleAssets.mul(ratio).div(1000);
     }
 
-    //When the bridge has received the funds it calls the callback to transfer it back to the strat
+    /**
+     * @dev Callback function to handle the receipt of funds from the bridge and update the bridged assets.
+     * @param _asset The address of the token being transferred.
+     * @param _amount The amount of tokens being transferred.
+     * @param _callData Additional call data for the transfer operation.
+     */
     function onFundsReceivedCallback(
-        address,
-        uint,
-        bytes calldata data
+        address _asset,
+        uint _amount,
+        bytes calldata _callData
     ) external onlyBridge {
-        bridgedAssets = abi.decode(data, (uint256));
+        bridgedAssets = abi.decode(_callData, (uint256));
     }
 
-    //Keeper can tend to request additional funds
+    /**
+     * @dev Requests a withdrawal of funds from the bridge.
+     * @param _amount The amount of tokens to be withdrawn.
+     */
     function requestWithdrawl(uint256 _amount) external payable onlyKeepers {
         bridge.withdraw{value: msg.value}(address(asset), _amount);
     }
@@ -96,8 +122,6 @@ contract OriginStrategy is BaseStrategy, IBridgeReceiver {
      */
     function depositFunds(uint256 _amount) external payable onlyKeepers {
         require(destinationBridge != address(0), "adapter is zero");
-
-        //swap part of the asset to cover fees
         //grant bridge the allowance to take asset from strat
         asset.increaseAllowance(address(bridge), _amount);
         //send fund to bridge
@@ -108,7 +132,7 @@ contract OriginStrategy is BaseStrategy, IBridgeReceiver {
             address(asset),
             _amount
         );
-
+        //reset allowance
         asset.increaseAllowance(address(bridge), 0);
         //account bridge asssets
         bridgedAssets += _amount;
